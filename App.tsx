@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Home, Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
 
@@ -65,10 +65,14 @@ export const useAppContext = () => {
 // --- Components ---
 
 const GoogleAd = ({ className }: { className?: string }) => {
+    const adRef = useRef<HTMLModElement>(null);
+
     useEffect(() => {
         try {
             const adsbygoogle = (window as any).adsbygoogle || [];
-            adsbygoogle.push({});
+            if (adRef.current && adRef.current.innerHTML === "") {
+                adsbygoogle.push({});
+            }
         } catch (e) {
             console.error("AdSense error", e);
         }
@@ -78,9 +82,10 @@ const GoogleAd = ({ className }: { className?: string }) => {
         <div className={`w-full overflow-hidden bg-surfaceVariant/5 flex justify-center items-center min-h-[100px] relative ${className}`}>
              <span className="text-[10px] text-onSurfaceVariant/20 absolute top-1 right-2 uppercase tracking-wider">Ad</span>
              <ins className="adsbygoogle"
+                 ref={adRef}
                  style={{ display: 'block', width: '100%' }}
                  data-ad-client="ca-pub-7652027225361719"
-                 data-ad-slot="1234567890" 
+                 data-ad-slot="7167045749" 
                  data-ad-format="auto"
                  data-full-width-responsive="true"
              />
@@ -379,18 +384,10 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 }
 
 const SkeletonCard = () => (
-  <div className="bg-surfaceVariant/10 rounded-2xl overflow-hidden flex h-36 animate-pulse border border-white/5">
-    <div className="w-28 h-full bg-surfaceVariant/20" />
-    <div className="flex-1 p-4 flex flex-col justify-between">
-      <div className="space-y-3">
-        <div className="h-4 bg-surfaceVariant/20 rounded w-3/4" />
-        <div className="h-3 bg-surfaceVariant/20 rounded w-1/2" />
-      </div>
-      <div className="flex justify-between items-center">
-        <div className="h-5 w-12 bg-surfaceVariant/20 rounded-md" />
-        <div className="h-5 w-16 bg-surfaceVariant/20 rounded-full" />
-      </div>
-    </div>
+  <div className="w-full animate-pulse">
+    <div className="aspect-[2/3] bg-surfaceVariant/20 rounded-xl mb-2" />
+    <div className="h-3 bg-surfaceVariant/20 rounded w-3/4 mb-1" />
+    <div className="h-2 bg-surfaceVariant/20 rounded w-1/3" />
   </div>
 );
 
@@ -399,7 +396,7 @@ const VerticalAnimeCard: React.FC<{ anime: Anime; onClick: () => void }> = ({ an
         layout
         whileTap={{ scale: 0.96 }}
         onClick={onClick}
-        className="w-[140px] shrink-0 cursor-pointer group"
+        className="w-full shrink-0 cursor-pointer group"
     >
         <div className="relative aspect-[2/3] rounded-xl overflow-hidden mb-2 shadow-md bg-surfaceVariant/20">
             <img 
@@ -455,7 +452,7 @@ const HorizontalAnimeCard: React.FC<{ anime: Anime; onClick: () => void }> = ({ 
         </div>
         
         <div className="w-full bg-surfaceVariant/30 h-1 rounded-full mt-2 overflow-hidden">
-             <div className="bg-primary h-full rounded-full" style={{ width: anime.userProgress ? `${(anime.userProgress / (anime.episodes || 12)) * 100}%` : '0%' }} />
+             <div className="bg-primary h-full rounded-full" style={{ width: anime.userProgress ? `${((anime.userProgress || 0) / (anime.episodes || 12)) * 100}%` : '0%' }} />
         </div>
 
         <div className="flex justify-between items-end mt-1">
@@ -654,7 +651,9 @@ const DiscoverScreen = () => {
               </div>
 
               {isSearching && !isLoadingMore && (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <SkeletonCard />
+                      <SkeletonCard />
                       <SkeletonCard />
                       <SkeletonCard />
                   </div>
@@ -671,9 +670,9 @@ const DiscoverScreen = () => {
               </div>
 
               {isLoadingMore && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="h-48 bg-surfaceVariant/10 rounded-xl animate-pulse" />
-                      <div className="h-48 bg-surfaceVariant/10 rounded-xl animate-pulse" />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                      <SkeletonCard />
+                      <SkeletonCard />
                   </div>
               )}
 
@@ -765,6 +764,7 @@ const MyListScreen = () => {
 const DetailScreen = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const params = useParams();
     const { addToMyList, myList, updateAnimeStatus, removeFromMyList } = useAppContext();
     const scrollRef = useRef(null);
     const { scrollY } = useScroll({ container: scrollRef });
@@ -773,7 +773,7 @@ const DetailScreen = () => {
     const headerY = useTransform(scrollY, [0, 300], [0, 150]);
 
     const animeFromState = location.state?.anime as Anime | undefined;
-    const animeId = parseInt(location.pathname.split('/').pop() || '0');
+    const animeId = parseInt(params.id || '0'); 
     const animeFromList = myList.find(a => a.id === animeId);
     
     const [fullAnime, setFullAnime] = useState<Anime | undefined>(animeFromList || animeFromState);
@@ -782,6 +782,7 @@ const DetailScreen = () => {
     const [recommendations, setRecommendations] = useState<Anime[]>([]);
     const [relations, setRelations] = useState<Relation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [showFullSynopsis, setShowFullSynopsis] = useState(false);
 
     // Dummy resume state for UI demo
@@ -790,33 +791,60 @@ const DetailScreen = () => {
 
     useEffect(() => {
         const fetchDetails = async () => {
-            if (!animeId) return;
+            if (!animeId || isNaN(animeId)) {
+                if (!fullAnime) setError("Invalid Anime ID");
+                setLoading(false);
+                return;
+            }
+
             setLoading(true);
+            setError(null);
             
-            const details = await GeminiService.getAnimeFullDetails(animeId);
-            if (details) setFullAnime(prev => ({ ...prev, ...details }));
+            try {
+                const details = await GeminiService.getAnimeFullDetails(animeId);
+                if (details) {
+                    setFullAnime(prev => ({ ...prev, ...details }));
+                } else if (!fullAnime) {
+                    setError("Failed to load anime details.");
+                }
 
-            const eps = await GeminiService.getAnimeEpisodes(animeId);
-            setEpisodes(eps);
+                // Continue fetching even if details failed slightly, but stop if major error
+                if (details || fullAnime) {
+                    const eps = await GeminiService.getAnimeEpisodes(animeId);
+                    setEpisodes(eps);
 
-            await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => setTimeout(resolve, 300));
 
-            const [chars, recs, rels] = await Promise.all([
-                GeminiService.getAnimeCharacters(animeId),
-                GeminiService.getAnimeRecommendationsById(animeId),
-                GeminiService.getAnimeRelations(animeId)
-            ]);
-            
-            setCharacters(chars);
-            setRecommendations(recs);
-            setRelations(rels);
-
-            setLoading(false);
+                    const [chars, recs, rels] = await Promise.all([
+                        GeminiService.getAnimeCharacters(animeId),
+                        GeminiService.getAnimeRecommendationsById(animeId),
+                        GeminiService.getAnimeRelations(animeId)
+                    ]);
+                    
+                    setCharacters(chars);
+                    setRecommendations(recs);
+                    setRelations(rels);
+                }
+            } catch (e) {
+                if (!fullAnime) setError("Network error occurred.");
+            } finally {
+                setLoading(false);
+            }
         };
         fetchDetails();
     }, [animeId]);
 
-    if (!fullAnime) return <div className="min-h-screen flex items-center justify-center text-onSurfaceVariant">Loading...</div>;
+    if (loading && !fullAnime) return <div className="min-h-screen flex items-center justify-center text-onSurfaceVariant"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+    
+    if (error && !fullAnime) return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-onSurfaceVariant gap-4 p-6 text-center">
+            <AlertCircle size={48} className="text-error mb-2" />
+            <p className="text-lg font-medium text-white">{error}</p>
+            <button onClick={() => navigate(-1)} className="px-6 py-2 bg-surfaceVariant rounded-full text-white font-bold">Go Back</button>
+        </div>
+    );
+
+    if (!fullAnime) return null; // Should not happen
 
     const isAdded = !!animeFromList;
     const currentAnime = { ...fullAnime, ...animeFromList };
@@ -830,7 +858,7 @@ const DetailScreen = () => {
     const handleDelete = () => {
         if (window.confirm("Remove from list?")) {
             removeFromMyList(currentAnime.id);
-            navigate(-1);
+            // navigate(-1); // Removed to stay on page and toggle UI
         }
     };
 
@@ -1071,6 +1099,8 @@ const DetailScreen = () => {
     );
 }
 
+// --- Login Screen ---
+
 const LoginScreen = () => {
   const { login } = useAppContext();
   const navigate = useNavigate();
@@ -1081,23 +1111,37 @@ const LoginScreen = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-[#1E1C22] p-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-background to-background" />
-        <div className="z-10 text-center space-y-8">
-            <div className="w-24 h-24 bg-gradient-to-br from-primary to-secondary rounded-3xl mx-auto shadow-[0_0_40px_rgba(103,80,164,0.5)] flex items-center justify-center rotate-6">
-                <Ghost size={48} className="text-white" />
-            </div>
-            <div>
-                <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">AniTrack</h1>
-                <p className="text-onSurfaceVariant text-sm">Your ultimate anime companion.</p>
-            </div>
-            <button
-                onClick={handleLogin}
-                className="w-full max-w-xs bg-primary text-onPrimary font-bold py-4 px-12 rounded-2xl shadow-lg hover:shadow-primary/25 active:scale-95 transition-all"
-            >
-                Get Started
-            </button>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-secondary/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 pointer-events-none" />
+
+        <div className="mb-8 relative">
+             <div className="w-24 h-24 bg-gradient-to-br from-primary to-secondary rounded-3xl flex items-center justify-center shadow-lg shadow-primary/20 rotate-3">
+                 <Sparkles size={48} className="text-white" />
+             </div>
+             <div className="absolute -bottom-2 -right-2 bg-[#252329] p-2 rounded-xl border border-white/10 shadow-lg -rotate-6">
+                 <Flame size={24} className="text-orange-500" fill="currentColor" />
+             </div>
         </div>
+
+        <h1 className="text-3xl font-bold text-white mb-2">Anime Discovery</h1>
+        <p className="text-onSurfaceVariant mb-10 max-w-[260px]">
+            Track your favorite anime, discover new gems, and keep your watchlist organized.
+        </p>
+
+        <button 
+            onClick={handleLogin}
+            className="w-full max-w-xs bg-white text-black font-bold py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+        >
+            <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
+                <UserIcon size={14} className="text-white" />
+            </div>
+            <span>Continue as Guest</span>
+        </button>
+
+        <p className="mt-8 text-[10px] text-onSurfaceVariant/40">
+            Powered by Jikan API (Unofficial MyAnimeList)
+        </p>
     </div>
   );
 };
