@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
 
@@ -94,6 +94,15 @@ function deduplicateItems(currentItems: (Anime | NewsItem)[], newItems: (Anime |
 
     return filteredNewItems;
 }
+
+// --- Scroll Helper ---
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 // --- Context ---
 
@@ -826,13 +835,15 @@ const DetailScreen = () => {
         };
     }, []);
 
-    const checkLegalAvailability = async (title: string) => {
-        if (!isOnline) return;
+    const checkLegalAvailability = async (title: string, isMounted: boolean) => {
+        if (!isOnline || !isMounted) return;
 
         setIsCheckingSources(true);
         // Simulate network delay for checking availability
         await new Promise(resolve => setTimeout(resolve, 800));
         
+        if (!isMounted) return;
+
         const encodedTitle = encodeURIComponent(title);
         setLegalSources([
             { name: 'Muse Asia', url: `https://www.youtube.com/results?search_query=Muse+Asia+${encodedTitle}`, type: 'youtube', icon: Youtube },
@@ -867,7 +878,7 @@ const DetailScreen = () => {
                      details = await GeminiService.getAnimeFullDetails(animeId);
                      if (details && isMounted) {
                          setFullAnime(prev => ({ ...(prev || {}), ...details }));
-                         checkLegalAvailability(details.title);
+                         checkLegalAvailability(details.title, isMounted);
                      } else if (!fullAnime && isMounted) {
                          setError("Failed to load details.");
                      }
@@ -953,7 +964,7 @@ const DetailScreen = () => {
     };
 
     return (
-        <div ref={scrollRef} className="h-screen overflow-y-auto bg-background scroll-smooth">
+        <div ref={scrollRef} className="h-[100dvh] overflow-y-auto bg-background scroll-smooth">
             {/* Parallax Hero */}
             <div className="relative h-[55vh] w-full overflow-hidden">
                 <motion.div style={{ y: headerY, opacity: headerOpacity }} className="absolute inset-0">
@@ -1630,9 +1641,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const App = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
+      <ScrollToTop />
       <AppProvider>
-        <div className="max-w-md mx-auto bg-background min-h-screen shadow-2xl overflow-hidden relative font-sans text-onSurface selection:bg-primary/30">
+        {/* Removed overflow-hidden to allow body scroll for non-fixed pages, relying on ScrollToTop */}
+        <div className="max-w-md mx-auto bg-background min-h-screen shadow-2xl relative font-sans text-onSurface selection:bg-primary/30">
             <Routes>
               <Route path="/login" element={<LoginScreen />} />
               <Route element={<Layout />}>
@@ -1645,7 +1658,7 @@ const App = () => {
             <NetworkStatus />
         </div>
       </AppProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
