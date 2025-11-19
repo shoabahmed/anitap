@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
@@ -14,6 +12,7 @@ import NewsCard from './components/NewsCard';
 import Layout from './components/Layout';
 import TrendingScreen from './pages/Trending';
 import StudioScreen from './pages/Studio';
+import GoogleAd from './components/GoogleAd';
 import { VerticalAnimeCard, HorizontalAnimeCard, SkeletonCard } from './components/AnimeCard';
 import { TrendingSlider } from './components/TrendingSlider';
 
@@ -173,44 +172,6 @@ const NetworkStatus = () => {
             >
                 Retry
             </button>
-        </div>
-    );
-};
-
-const GoogleAd = ({ className }: { className?: string }) => {
-    const adRef = useRef<HTMLModElement>(null);
-    const initialized = useRef(false);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            try {
-                if (initialized.current) return;
-                const adsbygoogle = (window as any).adsbygoogle || [];
-                // Double check existence and emptiness before pushing
-                if (adRef.current && adRef.current.innerHTML === "") {
-                    if (!initialized.current) {
-                        adsbygoogle.push({});
-                        initialized.current = true;
-                    }
-                }
-            } catch (e) {
-                // Silent catch for React Strict Mode re-mount issues
-            }
-        }, 200);
-        return () => clearTimeout(timer);
-    }, []);
-
-    return (
-        <div className={`w-full overflow-hidden bg-surfaceVariant/5 flex justify-center items-center min-h-[100px] relative ${className}`}>
-             <span className="text-[10px] text-onSurfaceVariant/20 absolute top-1 right-2 uppercase tracking-wider">Ad</span>
-             <ins className="adsbygoogle"
-                 ref={adRef}
-                 style={{ display: 'block', width: '100%' }}
-                 data-ad-client="ca-pub-7652027225361719"
-                 data-ad-slot="7167045749" 
-                 data-ad-format="auto"
-                 data-full-width-responsive="true"
-             />
         </div>
     );
 };

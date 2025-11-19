@@ -1,10 +1,10 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, Globe, Calendar, Users } from 'lucide-react';
 import { Anime } from '../types';
 import * as GeminiService from '../services/geminiService';
 import { VerticalAnimeCard, SkeletonCard } from '../components/AnimeCard';
+import GoogleAd from '../components/GoogleAd';
 
 const StudioScreen = () => {
   const { id } = useParams<{ id: string }>();
@@ -143,6 +143,8 @@ const StudioScreen = () => {
                    </p>
                </div>
           )}
+          
+          <GoogleAd className="mb-8 rounded-xl border border-white/5" />
 
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Globe size={20} className="text-primary" /> 

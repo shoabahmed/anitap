@@ -1,10 +1,10 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Flame, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Anime } from '../types';
 import * as AniListService from '../services/anilist';
 import { VerticalAnimeCard, SkeletonCard } from '../components/AnimeCard';
+import GoogleAd from '../components/GoogleAd';
 
 const TrendingScreen = () => {
   const navigate = useNavigate();
@@ -74,6 +74,10 @@ const TrendingScreen = () => {
                   Trending Now
               </h1>
           </div>
+      </div>
+
+      <div className="px-6 mt-4">
+          <GoogleAd className="rounded-xl" />
       </div>
 
       {/* Grid */}
