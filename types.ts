@@ -9,6 +9,11 @@ export enum AnimeStatus {
 
 export type FilterPreset = 'Top Rated' | 'Trending' | 'Classics' | 'New Releases' | 'Movies';
 
+export interface Studio {
+  id: number;
+  name: string;
+}
+
 export interface Anime {
   id: number;
   title: string;
@@ -24,7 +29,7 @@ export interface Anime {
   
   // Extended Details
   genres?: string[];
-  studios?: string[];
+  studios?: Studio[]; // Changed from string[] to Studio[]
   rank?: number;
   popularity?: number;
   members?: number;

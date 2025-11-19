@@ -1,3 +1,4 @@
+
 import { Anime, MALNode, AnimeResponse } from '../types';
 
 // BASE_URL points to the local Vite proxy configured in vite.config.ts
@@ -25,7 +26,7 @@ const transformMALNode = (node: MALNode): Anime => {
         status: node.status ? node.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : undefined,
         type: node.media_type ? node.media_type.toUpperCase() : undefined,
         genres: node.genres?.map(g => g.name) || [],
-        studios: node.studios?.map(s => s.name) || [],
+        studios: node.studios?.map(s => ({ id: s.id, name: s.name })) || [],
         year: node.start_season?.year,
         season: node.start_season?.season,
         rank: node.rank,

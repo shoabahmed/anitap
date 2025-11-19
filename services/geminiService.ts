@@ -1,5 +1,5 @@
 
-import { Anime, Character, Episode, Relation } from "../types";
+import { Anime, Character, Episode, Relation, Studio } from "../types";
 
 // We use Jikan API (Unofficial MyAnimeList API) to ensure:
 // 1. Fast search results (no LLM generation latency)
@@ -16,6 +16,7 @@ export interface SearchResult {
 
 export interface SearchFilters {
     genres?: number[];
+    producers?: string; // Comma separated IDs
     status?: 'airing' | 'complete' | 'upcoming';
     type?: 'tv' | 'movie' | 'ova' | 'ona' | 'special';
     rating?: 'g' | 'pg' | 'pg13' | 'r17' | 'r+' | 'rx'; // Jikan ratings
@@ -26,6 +27,16 @@ export interface SearchFilters {
     sfw?: boolean; // true = safe (default), false = allow nsfw
     order_by?: 'score' | 'popularity' | 'start_date' | 'title' | 'favorites' | 'episodes';
     sort?: 'asc' | 'desc';
+}
+
+export interface StudioData {
+    mal_id: number;
+    titles: { type: string, title: string }[];
+    images: { jpg: { image_url: string } };
+    favorites: number;
+    established: string;
+    about: string;
+    count: number;
 }
 
 // Comprehensive Genre Mapping (MyAnimeList IDs)
@@ -111,6 +122,7 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
     }
 
     if (filters) {
+        if (filters.producers) params.append('producers', filters.producers);
         if (filters.status) params.append('status', filters.status);
         if (filters.type) params.append('type', filters.type);
         if (filters.rating) params.append('rating', filters.rating);
@@ -125,6 +137,10 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
             params.append('sort', filters.sort || 'desc');
         } else if (query.length > 0) {
             // Default search relevance
+        } else if (filters.producers) {
+             // If just producer view, sort by popularity by default
+             params.append('order_by', 'members');
+             params.append('sort', 'desc');
         } else {
              // Default for browsing
              params.append('order_by', 'popularity');
@@ -147,6 +163,20 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
   } catch (error) {
     return { data: [], hasNextPage: false, error: "Network error." };
   }
+};
+
+export const getStudioById = async (id: number): Promise<StudioData | null> => {
+    if (!navigator.onLine) return null;
+    try {
+        await wait(300);
+        const response = await fetch(`${BASE_URL}/producers/${id}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.data;
+    } catch (e) {
+        console.error("Studio fetch failed", e);
+        return null;
+    }
 };
 
 export const getTopAnime = async (page: number = 1): Promise<Anime[]> => {
@@ -290,7 +320,7 @@ const transformJikanAnime = (item: any): Anime => {
         
         // Extended
         genres: item.genres?.map((g: any) => g.name) || [],
-        studios: item.studios?.map((s: any) => s.name) || [],
+        studios: item.studios?.map((s: any) => ({ id: s.mal_id, name: s.name })) || [],
         rank: item.rank,
         popularity: item.popularity,
         members: item.members,

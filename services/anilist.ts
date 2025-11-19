@@ -39,6 +39,7 @@ const processAniListResponse = (json: AniListResponse): Anime[] => {
         episodes: item.episodes || 0,
         status: 'Trending', 
         genres: [], 
+        studios: [], // Empty default for AniList lists (Details are fetched via Jikan)
       }));
 };
 

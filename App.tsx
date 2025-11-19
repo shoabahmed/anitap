@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
@@ -12,6 +13,7 @@ import * as NewsService from './services/news';
 import NewsCard from './components/NewsCard';
 import Layout from './components/Layout';
 import TrendingScreen from './pages/Trending';
+import StudioScreen from './pages/Studio';
 import { VerticalAnimeCard, HorizontalAnimeCard, SkeletonCard } from './components/AnimeCard';
 import { TrendingSlider } from './components/TrendingSlider';
 
@@ -155,7 +157,7 @@ const NetworkStatus = () => {
     if (isOnline) return null;
 
     return (
-        <div className="fixed bottom-24 left-4 right-4 z-[100] bg-error text-[#21005d] p-4 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5 fade-in duration-300 border border-error/50">
+        <div className="fixed bottom-24 left-4 right-4 z-[100] md:left-auto md:right-8 md:bottom-8 md:w-80 bg-error text-[#21005d] p-4 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5 fade-in duration-300 border border-error/50">
             <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-full text-onPrimary">
                     <WifiOff size={20} strokeWidth={2.5} />
@@ -519,12 +521,13 @@ const DiscoverScreen = () => {
   const showResults = searchQuery.length > 0 || Object.keys(searchFilters).length > 1;
 
   return (
-    <div className="min-h-screen pb-24 bg-background flex flex-col">
+    // Removed min-h-screen and pb-24 as Layout handles scrolling now
+    <div className="bg-background flex flex-col min-h-full">
       {/* Sticky Header */}
       <div className="sticky top-0 z-40 bg-[#1E1C22]/95 backdrop-blur-xl px-6 pt-4 pb-2 border-b border-white/5 shadow-md">
           <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold text-white">Discover</h1>
-              <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center border border-primary/30">
+              <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center border border-primary/30 md:hidden">
                   <UserIcon size={16} className="text-primary" />
               </div>
           </div>
@@ -610,7 +613,7 @@ const DiscoverScreen = () => {
           {/* Discovery Content (Only show if NOT searching) */}
           {!showResults && (
             <>
-                {/* Trending Carousel - REFACTORED */}
+                {/* Trending Carousel */}
                 <TrendingSlider 
                     animeList={trendingAnime} 
                     onSelect={(a) => navigate(`/detail/${a.id}`, { state: { anime: a } })} 
@@ -652,7 +655,9 @@ const DiscoverScreen = () => {
               </div>
 
               {isSearching && !isLoadingMore && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      <SkeletonCard />
+                      <SkeletonCard />
                       <SkeletonCard />
                       <SkeletonCard />
                       <SkeletonCard />
@@ -668,7 +673,7 @@ const DiscoverScreen = () => {
                   </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {!isSearching && !searchError && searchResults.map((item, index) => {
                       // Type Guard to render correct card
                       // Anime objects ALWAYS have a numeric 'id', NewsItems do not.
@@ -689,7 +694,7 @@ const DiscoverScreen = () => {
               </div>
 
               {isLoadingMore && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mt-4">
                       <SkeletonCard />
                       <SkeletonCard />
                   </div>
@@ -718,7 +723,8 @@ const MyListScreen = () => {
   const totalEpsWatched = myList.reduce((acc, curr) => acc + (curr.userProgress || 0), 0);
 
   return (
-    <div className="min-h-screen pb-24 bg-background">
+    // Removed min-h-screen as layout handles it
+    <div className="bg-background min-h-full">
       {/* Header */}
       <div className="pt-12 px-6 mb-8">
         <h1 className="text-2xl font-bold text-white mb-1">{greeting},</h1>
@@ -759,9 +765,9 @@ const MyListScreen = () => {
       </div>
 
       {/* List */}
-      <div className="px-6 space-y-4">
+      <div className="px-6 space-y-4 grid grid-cols-1 lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         {filteredList.length === 0 ? (
-            <div className="text-center py-20 opacity-50">
+            <div className="text-center py-20 opacity-50 col-span-full">
                 <Ghost size={48} className="mx-auto mb-3 text-surfaceVariant" />
                 <p className="text-sm font-medium">No anime found here.</p>
                 <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary/20 rounded-full text-primary text-xs font-bold mt-4 hover:bg-primary/30 transition-colors">Find Anime</button>
@@ -928,10 +934,10 @@ const DetailScreen = () => {
         return () => { isMounted = false; };
     }, [animeId, isOnline]);
 
-    if (loading && !fullAnime) return <div className="min-h-screen flex items-center justify-center text-onSurfaceVariant"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+    if (loading && !fullAnime) return <div className="min-h-full flex items-center justify-center text-onSurfaceVariant"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
     
     if (error && !fullAnime) return (
-        <div className="min-h-screen flex flex-col items-center justify-center text-onSurfaceVariant gap-4 p-6 text-center">
+        <div className="min-h-full flex flex-col items-center justify-center text-onSurfaceVariant gap-4 p-6 text-center">
             <AlertCircle size={48} className="text-error mb-2" />
             <p className="text-lg font-medium text-white">{error}</p>
             <button onClick={() => navigate(-1)} className="px-6 py-2 bg-surfaceVariant rounded-full text-white font-bold">Go Back</button>
@@ -964,7 +970,8 @@ const DetailScreen = () => {
     };
 
     return (
-        <div ref={scrollRef} className="h-[100dvh] overflow-y-auto bg-background scroll-smooth">
+        // Changed h-[100dvh] to h-full to respect the Layout's flex container
+        <div ref={scrollRef} className="h-full overflow-y-auto bg-background scroll-smooth relative">
             {/* Parallax Hero */}
             <div className="relative h-[55vh] w-full overflow-hidden">
                 <motion.div style={{ y: headerY, opacity: headerOpacity }} className="absolute inset-0">
@@ -1004,7 +1011,7 @@ const DetailScreen = () => {
             <div className="relative z-10 bg-background rounded-t-[32px] -mt-8 px-6 pt-8 pb-24 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] min-h-screen border-t border-white/5">
                 
                 {/* Quick Stats Floating Bar */}
-                <div className="absolute -top-8 left-6 right-6 bg-[#252329] rounded-2xl shadow-xl border border-white/10 p-4 flex justify-around items-center">
+                <div className="absolute -top-8 left-6 right-6 bg-[#252329] rounded-2xl shadow-xl border border-white/10 p-4 flex justify-around items-center max-w-2xl mx-auto">
                      <div className="text-center">
                          <div className="text-xs text-onSurfaceVariant uppercase tracking-wide mb-0.5">Rank</div>
                          <div className="text-sm font-bold text-white">#{currentAnime.rank || '-'}</div>
@@ -1023,329 +1030,346 @@ const DetailScreen = () => {
                      </div>
                 </div>
 
-                {/* Actions */}
-                <div className="mt-12 flex gap-3 mb-8 z-50 relative">
-                    {/* Watch Options Dropdown */}
-                     <div className="flex-1 relative" ref={watchDropdownRef}>
-                        <button 
-                            onClick={() => setIsWatchDropdownOpen(!isWatchDropdownOpen)}
-                            className="w-full bg-primary hover:bg-primary/90 text-onPrimary font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2"
-                        >
-                            <Play size={20} fill="currentColor" /> Watch Options <ChevronDown size={16} className={`transition-transform duration-200 ${isWatchDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        <AnimatePresence>
-                            {isWatchDropdownOpen && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-[#2B2930] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 p-2 flex flex-col gap-1"
-                                >
-                                    <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-onSurfaceVariant/60 font-bold">Streaming Sources</div>
-                                    
-                                    {/* Unofficial */}
-                                    <button 
-                                        onClick={() => handleWatch()}
-                                        className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
-                                    >
-                                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                                            <Play size={14} fill="currentColor" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="text-sm font-bold text-white">HiAnime</div>
-                                            <div className="text-[10px] text-onSurfaceVariant">Unofficial • Free</div>
-                                        </div>
-                                        <ExternalLink size={14} className="text-onSurfaceVariant/50" />
-                                    </button>
-
-                                    <div className="h-px bg-white/5 my-1 mx-2" />
-                                    
-                                    {/* Legal Sources */}
-                                    {isCheckingSources ? (
-                                        <div className="py-4 flex flex-col items-center justify-center text-onSurfaceVariant/50 gap-2">
-                                            <Loader2 size={20} className="animate-spin text-primary" />
-                                            <span className="text-xs">Checking availability...</span>
-                                        </div>
-                                    ) : (
-                                        legalSources.map((source) => (
-                                            <a 
-                                                key={source.name}
-                                                href={source.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
-                                            >
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${source.type === 'youtube' ? 'bg-red-500/20 text-red-500 group-hover:bg-red-600 group-hover:text-white' : 'bg-surfaceVariant text-onSurfaceVariant group-hover:bg-white group-hover:text-black'}`}>
-                                                    <source.icon size={16} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-bold text-white">{source.name}</div>
-                                                    <div className="text-[10px] text-onSurfaceVariant">Official • Legal</div>
-                                                </div>
-                                                <ExternalLink size={14} className="text-onSurfaceVariant/50" />
-                                            </a>
-                                        ))
-                                    )}
-
-                                    {!isOnline && !isCheckingSources && legalSources.length === 0 && (
-                                         <div className="py-3 px-4 text-center text-xs text-onSurfaceVariant/50">
-                                            Check internet to see legal sources
-                                         </div>
-                                    )}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                     </div>
-                     
-                     {!isAdded ? (
-                         <button 
-                            onClick={() => addToMyList(currentAnime, AnimeStatus.PlanToWatch)}
-                            className="px-6 bg-surfaceVariant hover:bg-surfaceVariant/80 text-white font-bold rounded-2xl transition-all active:scale-95 flex items-center gap-2 border border-white/5"
-                         >
-                             <Plus size={24} />
-                         </button>
-                     ) : (
-                         <div className="flex gap-2">
-                             <div className="relative">
-                                <select 
-                                    className="h-full pl-4 pr-8 bg-surfaceVariant text-white font-bold rounded-2xl appearance-none outline-none border border-white/5 text-sm"
-                                    value={currentAnime.userStatus}
-                                    onChange={(e) => updateAnimeStatus(currentAnime.id, e.target.value as AnimeStatus)}
-                                >
-                                    {Object.values(AnimeStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" size={16} />
-                             </div>
-                             <button onClick={handleDelete} className="px-4 bg-surfaceVariant/50 text-error rounded-2xl hover:bg-error/20 transition-colors">
-                                 <Trash2 size={20} />
-                             </button>
-                         </div>
-                     )}
-                </div>
-
-                {/* Resume Progress (Mock) */}
-                {isAdded && currentAnime.userStatus === AnimeStatus.Watching && (
-                    <div className="mb-8 bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:border-primary/40 transition-colors" onClick={() => handleWatch()}>
-                        <div>
-                            <span className="text-xs text-primary font-bold uppercase tracking-wider block mb-1">Continue Watching</span>
-                            <span className="text-sm font-medium text-white">Episode {resumeEp}</span>
-                        </div>
-                        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
-                            <Play size={16} fill="currentColor" />
-                        </div>
-                    </div>
-                )}
-
-                {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                     <div className="bg-surfaceVariant/5 p-4 rounded-2xl border border-white/5">
-                         <span className="text-[10px] text-onSurfaceVariant uppercase tracking-wide block mb-1">Format</span>
-                         <span className="text-sm font-bold text-white">{currentAnime.type || 'TV'}</span>
-                     </div>
-                     <div className="bg-surfaceVariant/5 p-4 rounded-2xl border border-white/5">
-                         <span className="text-[10px] text-onSurfaceVariant uppercase tracking-wide block mb-1">Studio</span>
-                         <span className="text-sm font-bold text-white truncate">{currentAnime.studios?.[0] || 'Unknown'}</span>
-                     </div>
-                </div>
-
-                {/* Genres */}
-                <div className="flex flex-wrap gap-2 mb-8">
-                    {currentAnime.genres?.map(g => (
-                        <span key={g} className="px-3 py-1.5 rounded-xl bg-surfaceVariant/20 text-xs font-medium text-onSurfaceVariant border border-white/5">
-                            {g}
-                        </span>
-                    ))}
-                </div>
-
-                {/* Synopsis */}
-                <div className="mb-10">
-                    <h3 className="text-base font-bold text-white mb-3">Synopsis</h3>
-                    <p className={`text-sm text-onSurfaceVariant leading-7 font-light ${!showFullSynopsis && 'line-clamp-4'}`}>
-                        {currentAnime.synopsis}
-                    </p>
-                    {currentAnime.synopsis && currentAnime.synopsis.length > 200 && (
-                        <button onClick={() => setShowFullSynopsis(!showFullSynopsis)} className="text-xs text-primary font-bold mt-2">
-                            {showFullSynopsis ? 'Show Less' : 'Read More'}
-                        </button>
-                    )}
-                </div>
-
-                {/* Ad Banner */}
-                <div className="mb-8 px-1">
-                    <GoogleAd className="rounded-2xl border border-white/5" />
-                </div>
-
-                {/* Characters */}
-                {characters.length > 0 && (
-                    <div className="mb-10">
-                        <h3 className="text-base font-bold text-white mb-4">Characters</h3>
-                        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                            {characters.map(char => (
-                                <div key={char.id} className="w-24 shrink-0">
-                                    <div className="relative mb-2">
-                                        <img src={char.imageUrl} alt={char.name} className="w-24 h-24 rounded-2xl object-cover border border-white/5" />
-                                    </div>
-                                    <div className="text-xs font-medium text-white truncate">{char.name}</div>
-                                    <div className="text-[10px] text-onSurfaceVariant/60 truncate">{char.role}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Episodes */}
-                <div className="mb-10">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-base font-bold text-white">Episodes</h3>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs text-onSurfaceVariant">{episodes.length > 0 ? `${episodes.length} eps` : ''}</span>
+                {/* Content Wrapper for Desktop Centering */}
+                <div className="max-w-4xl mx-auto">
+                    {/* Actions */}
+                    <div className="mt-12 flex gap-3 mb-8 z-50 relative">
+                        {/* Watch Options Dropdown */}
+                        <div className="flex-1 relative" ref={watchDropdownRef}>
                             <button 
-                                onClick={() => setShowAllEpisodes(!showAllEpisodes)} 
-                                className="text-xs font-bold text-primary hover:text-primary/80"
+                                onClick={() => setIsWatchDropdownOpen(!isWatchDropdownOpen)}
+                                className="w-full bg-primary hover:bg-primary/90 text-onPrimary font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                {showAllEpisodes ? 'Show Less' : 'Show All'}
+                                <Play size={20} fill="currentColor" /> Watch Options <ChevronDown size={16} className={`transition-transform duration-200 ${isWatchDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                        {episodes.slice(0, showAllEpisodes ? episodes.length : 5).map(ep => {
-                            const epNum = typeof ep.episode === 'number' ? ep.episode : parseInt(ep.episode as string);
-                            const isWatched = (currentAnime.userProgress || 0) >= epNum;
-                            
-                            return (
-                                <div key={ep.mal_id} className="flex items-center gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors group">
-                                    <div 
-                                        className="relative w-28 aspect-video bg-surfaceVariant/20 rounded-lg overflow-hidden shrink-0 cursor-pointer"
-                                        onClick={() => handleWatch()}
+
+                            <AnimatePresence>
+                                {isWatchDropdownOpen && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="absolute top-full left-0 right-0 mt-2 bg-[#2B2930] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 p-2 flex flex-col gap-1"
                                     >
-                                        {/* Mock thumbnail as API doesn't always provide ep thumb */}
-                                        <img src={currentAnime.imageUrl} className="w-full h-full object-cover opacity-50" alt="ep" />
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white group-hover:bg-primary group-hover:scale-110 transition-all">
-                                                <Play size={12} fill="currentColor" />
+                                        <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-onSurfaceVariant/60 font-bold">Streaming Sources</div>
+                                        
+                                        {/* Unofficial */}
+                                        <button 
+                                            onClick={() => handleWatch()}
+                                            className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
+                                        >
+                                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                                <Play size={14} fill="currentColor" />
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleWatch()}>
-                                        <div className="text-xs font-bold text-white mb-0.5 line-clamp-1">{ep.title}</div>
-                                        <div className="text-[10px] text-onSurfaceVariant">Episode {ep.episode} • 24m</div>
-                                    </div>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); toggleEpisodeWatched(epNum); }}
-                                        className={`p-2 rounded-full transition-all ${isWatched ? 'text-primary bg-primary/10' : 'text-onSurfaceVariant/20 hover:text-onSurfaceVariant'}`}
-                                    >
-                                        <CheckCircle2 size={20} />
-                                    </button>
-                                </div>
-                            );
-                        })}
-                        {!showAllEpisodes && episodes.length > 5 && (
+                                            <div className="flex-1">
+                                                <div className="text-sm font-bold text-white">HiAnime</div>
+                                                <div className="text-[10px] text-onSurfaceVariant">Unofficial • Free</div>
+                                            </div>
+                                            <ExternalLink size={14} className="text-onSurfaceVariant/50" />
+                                        </button>
+
+                                        <div className="h-px bg-white/5 my-1 mx-2" />
+                                        
+                                        {/* Legal Sources */}
+                                        {isCheckingSources ? (
+                                            <div className="py-4 flex flex-col items-center justify-center text-onSurfaceVariant/50 gap-2">
+                                                <Loader2 size={20} className="animate-spin text-primary" />
+                                                <span className="text-xs">Checking availability...</span>
+                                            </div>
+                                        ) : (
+                                            legalSources.map((source) => (
+                                                <a 
+                                                    key={source.name}
+                                                    href={source.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
+                                                >
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${source.type === 'youtube' ? 'bg-red-500/20 text-red-500 group-hover:bg-red-600 group-hover:text-white' : 'bg-surfaceVariant text-onSurfaceVariant group-hover:bg-white group-hover:text-black'}`}>
+                                                        <source.icon size={16} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="text-sm font-bold text-white">{source.name}</div>
+                                                        <div className="text-[10px] text-onSurfaceVariant">Official • Legal</div>
+                                                    </div>
+                                                    <ExternalLink size={14} className="text-onSurfaceVariant/50" />
+                                                </a>
+                                            ))
+                                        )}
+
+                                        {!isOnline && !isCheckingSources && legalSources.length === 0 && (
+                                            <div className="py-3 px-4 text-center text-xs text-onSurfaceVariant/50">
+                                                Check internet to see legal sources
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                        
+                        {!isAdded ? (
                             <button 
-                                onClick={() => setShowAllEpisodes(true)}
-                                className="w-full py-3 text-xs font-bold text-onSurfaceVariant bg-surfaceVariant/10 rounded-xl hover:bg-surfaceVariant/20 transition-colors"
+                                onClick={() => addToMyList(currentAnime, AnimeStatus.PlanToWatch)}
+                                className="px-6 bg-surfaceVariant hover:bg-surfaceVariant/80 text-white font-bold rounded-2xl transition-all active:scale-95 flex items-center gap-2 border border-white/5"
                             >
-                                View {episodes.length - 5} more episodes
+                                <Plus size={24} />
                             </button>
-                        )}
-                        {episodes.length === 0 && (
-                            <div className="text-center text-xs text-onSurfaceVariant/50 py-4">
-                                No episode data available.
+                        ) : (
+                            <div className="flex gap-2">
+                                <div className="relative">
+                                    <select 
+                                        className="h-full pl-4 pr-8 bg-surfaceVariant text-white font-bold rounded-2xl appearance-none outline-none border border-white/5 text-sm"
+                                        value={currentAnime.userStatus}
+                                        onChange={(e) => updateAnimeStatus(currentAnime.id, e.target.value as AnimeStatus)}
+                                    >
+                                        {Object.values(AnimeStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" size={16} />
+                                </div>
+                                <button onClick={handleDelete} className="px-4 bg-surfaceVariant/50 text-error rounded-2xl hover:bg-error/20 transition-colors">
+                                    <Trash2 size={20} />
+                                </button>
                             </div>
                         )}
                     </div>
-                </div>
 
-                 {/* Related Media */}
-                 {relations.length > 0 && (
-                    <div className="mb-10">
-                        <h3 className="text-base font-bold text-white mb-4">Related Media</h3>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                            {relations.map((rel) => (
-                                rel.entry.map(entry => (
-                                    <div key={`${rel.relation}-${entry.mal_id}`} className="shrink-0 bg-surfaceVariant/5 px-4 py-3 rounded-xl border border-white/5 min-w-[140px]">
-                                        <span className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1 block">{rel.relation}</span>
-                                        <span className="text-xs font-medium text-white line-clamp-2">{entry.name}</span>
-                                    </div>
-                                ))
-                            ))}
+                    {/* Resume Progress (Mock) */}
+                    {isAdded && currentAnime.userStatus === AnimeStatus.Watching && (
+                        <div className="mb-8 bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:border-primary/40 transition-colors" onClick={() => handleWatch()}>
+                            <div>
+                                <span className="text-xs text-primary font-bold uppercase tracking-wider block mb-1">Continue Watching</span>
+                                <span className="text-sm font-medium text-white">Episode {resumeEp}</span>
+                            </div>
+                            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
+                                <Play size={16} fill="currentColor" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="bg-surfaceVariant/5 p-4 rounded-2xl border border-white/5">
+                            <span className="text-[10px] text-onSurfaceVariant uppercase tracking-wide block mb-1">Format</span>
+                            <span className="text-sm font-bold text-white">{currentAnime.type || 'TV'}</span>
+                        </div>
+                        <div className="bg-surfaceVariant/5 p-4 rounded-2xl border border-white/5">
+                            <span className="text-[10px] text-onSurfaceVariant uppercase tracking-wide block mb-1">Studio</span>
+                            <div className="flex flex-wrap gap-2">
+                                {currentAnime.studios?.length ? (
+                                    currentAnime.studios.map(studio => (
+                                        <Link 
+                                            key={studio.id} 
+                                            to={`/studio/${studio.id}`}
+                                            className="text-sm font-bold text-primary hover:underline"
+                                        >
+                                            {studio.name}
+                                        </Link>
+                                    ))
+                                ) : (
+                                    <span className="text-sm font-bold text-white">Unknown</span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                )}
 
-                {/* Recommendations (Refactored) */}
-                {recommendations.length > 0 && (
-                    <div className="mb-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-base font-bold text-white">More Like This</h3>
-                            <Sparkle size={16} className="text-primary animate-pulse" />
+                    {/* Genres */}
+                    <div className="flex flex-wrap gap-2 mb-8">
+                        {currentAnime.genres?.map(g => (
+                            <span key={g} className="px-3 py-1.5 rounded-xl bg-surfaceVariant/20 text-xs font-medium text-onSurfaceVariant border border-white/5">
+                                {g}
+                            </span>
+                        ))}
+                    </div>
+
+                    {/* Synopsis */}
+                    <div className="mb-10">
+                        <h3 className="text-base font-bold text-white mb-3">Synopsis</h3>
+                        <p className={`text-sm text-onSurfaceVariant leading-7 font-light ${!showFullSynopsis && 'line-clamp-4'}`}>
+                            {currentAnime.synopsis}
+                        </p>
+                        {currentAnime.synopsis && currentAnime.synopsis.length > 200 && (
+                            <button onClick={() => setShowFullSynopsis(!showFullSynopsis)} className="text-xs text-primary font-bold mt-2">
+                                {showFullSynopsis ? 'Show Less' : 'Read More'}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Ad Banner */}
+                    <div className="mb-8 px-1">
+                        <GoogleAd className="rounded-2xl border border-white/5" />
+                    </div>
+
+                    {/* Characters */}
+                    {characters.length > 0 && (
+                        <div className="mb-10">
+                            <h3 className="text-base font-bold text-white mb-4">Characters</h3>
+                            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                                {characters.map(char => (
+                                    <div key={char.id} className="w-24 shrink-0">
+                                        <div className="relative mb-2">
+                                            <img src={char.imageUrl} alt={char.name} className="w-24 h-24 rounded-2xl object-cover border border-white/5" />
+                                        </div>
+                                        <div className="text-xs font-medium text-white truncate">{char.name}</div>
+                                        <div className="text-[10px] text-onSurfaceVariant/60 truncate">{char.role}</div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            {recommendations.map((rec, index) => {
-                                const isHero = index === 0;
+                    )}
+
+                    {/* Episodes */}
+                    <div className="mb-10">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-base font-bold text-white">Episodes</h3>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-onSurfaceVariant">{episodes.length > 0 ? `${episodes.length} eps` : ''}</span>
+                                <button 
+                                    onClick={() => setShowAllEpisodes(!showAllEpisodes)} 
+                                    className="text-xs font-bold text-primary hover:text-primary/80"
+                                >
+                                    {showAllEpisodes ? 'Show Less' : 'Show All'}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            {episodes.slice(0, showAllEpisodes ? episodes.length : 5).map(ep => {
+                                const epNum = typeof ep.episode === 'number' ? ep.episode : parseInt(ep.episode as string);
+                                const isWatched = (currentAnime.userProgress || 0) >= epNum;
+                                
                                 return (
-                                    <div 
-                                        key={rec.id} 
-                                        onClick={() => navigate(`/detail/${rec.id}`, { state: { anime: rec } })}
-                                        className={`
-                                            cursor-pointer group relative rounded-xl overflow-hidden 
-                                            transition-all duration-300 hover:scale-[1.02] hover:shadow-xl
-                                            animate-fade-in-up
-                                            ${isHero ? 'col-span-2 bg-surfaceVariant/10 flex flex-row' : 'col-span-1'}
-                                        `}
-                                        style={{ animationDelay: `${index * 100}ms` }}
-                                    >
-                                        {/* Hero Card Layout */}
-                                        {isHero ? (
-                                            <>
-                                                <div className="w-1/3 shrink-0 relative">
-                                                    <img 
-                                                        src={rec.imageUrl} 
-                                                        className="w-full h-full object-cover" 
-                                                        alt={rec.title} 
-                                                    />
-                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#1E1C22]/90 sm:hidden" />
+                                    <div key={ep.mal_id} className="flex items-center gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors group">
+                                        <div 
+                                            className="relative w-28 aspect-video bg-surfaceVariant/20 rounded-lg overflow-hidden shrink-0 cursor-pointer"
+                                            onClick={() => handleWatch()}
+                                        >
+                                            {/* Mock thumbnail as API doesn't always provide ep thumb */}
+                                            <img src={currentAnime.imageUrl} className="w-full h-full object-cover opacity-50" alt="ep" />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white group-hover:bg-primary group-hover:scale-110 transition-all">
+                                                    <Play size={12} fill="currentColor" />
                                                 </div>
-                                                <div className="p-4 flex flex-col justify-center flex-1 relative">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px] font-bold uppercase tracking-wider">Featured</span>
-                                                        <div className="flex items-center gap-1 text-xs text-yellow-400 font-bold">
-                                                            <Star size={10} fill="currentColor" /> {rec.score}
-                                                        </div>
-                                                    </div>
-                                                    <h4 className="text-base font-bold text-white leading-tight mb-2 line-clamp-2 group-hover:text-primary transition-colors">{rec.title}</h4>
-                                                    <p className="text-xs text-onSurfaceVariant/80 line-clamp-2 mb-3">{rec.synopsis || 'No description available.'}</p>
-                                                    <div className="flex items-center gap-3 text-[10px] text-onSurfaceVariant/50 uppercase tracking-wider font-medium">
-                                                        <span>{rec.type || 'TV'}</span>
-                                                        <span>•</span>
-                                                        <span>{rec.episodes ? `${rec.episodes} EPS` : '? EPS'}</span>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            /* Standard Card Layout */
-                                            <>
-                                                <div className="relative aspect-[2/3] mb-2">
-                                                    <img 
-                                                        src={rec.imageUrl} 
-                                                        className="w-full h-full object-cover rounded-xl group-hover:brightness-110 transition-all" 
-                                                        alt={rec.title} 
-                                                    />
-                                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
-                                                        <Star size={8} fill="currentColor" /> {rec.score}
-                                                    </div>
-                                                </div>
-                                                <h4 className="text-xs font-medium text-white line-clamp-2 leading-tight group-hover:text-primary transition-colors">{rec.title}</h4>
-                                            </>
-                                        )}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleWatch()}>
+                                            <div className="text-xs font-bold text-white mb-0.5 line-clamp-1">{ep.title}</div>
+                                            <div className="text-[10px] text-onSurfaceVariant">Episode {ep.episode} • 24m</div>
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); toggleEpisodeWatched(epNum); }}
+                                            className={`p-2 rounded-full transition-all ${isWatched ? 'text-primary bg-primary/10' : 'text-onSurfaceVariant/20 hover:text-onSurfaceVariant'}`}
+                                        >
+                                            <CheckCircle2 size={20} />
+                                        </button>
                                     </div>
                                 );
                             })}
+                            {!showAllEpisodes && episodes.length > 5 && (
+                                <button 
+                                    onClick={() => setShowAllEpisodes(true)}
+                                    className="w-full py-3 text-xs font-bold text-onSurfaceVariant bg-surfaceVariant/10 rounded-xl hover:bg-surfaceVariant/20 transition-colors"
+                                >
+                                    View {episodes.length - 5} more episodes
+                                </button>
+                            )}
+                            {episodes.length === 0 && (
+                                <div className="text-center text-xs text-onSurfaceVariant/50 py-4">
+                                    No episode data available.
+                                </div>
+                            )}
                         </div>
                     </div>
-                )}
+
+                    {/* Related Media */}
+                    {relations.length > 0 && (
+                        <div className="mb-10">
+                            <h3 className="text-base font-bold text-white mb-4">Related Media</h3>
+                            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                                {relations.map((rel) => (
+                                    rel.entry.map(entry => (
+                                        <div key={`${rel.relation}-${entry.mal_id}`} className="shrink-0 bg-surfaceVariant/5 px-4 py-3 rounded-xl border border-white/5 min-w-[140px]">
+                                            <span className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1 block">{rel.relation}</span>
+                                            <span className="text-xs font-medium text-white line-clamp-2">{entry.name}</span>
+                                        </div>
+                                    ))
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Recommendations (Refactored) */}
+                    {recommendations.length > 0 && (
+                        <div className="mb-8">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-base font-bold text-white">More Like This</h3>
+                                <Sparkle size={16} className="text-primary animate-pulse" />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                {recommendations.map((rec, index) => {
+                                    const isHero = index === 0;
+                                    return (
+                                        <div 
+                                            key={rec.id} 
+                                            onClick={() => navigate(`/detail/${rec.id}`, { state: { anime: rec } })}
+                                            className={`
+                                                cursor-pointer group relative rounded-xl overflow-hidden 
+                                                transition-all duration-300 hover:scale-[1.02] hover:shadow-xl
+                                                animate-fade-in-up
+                                                ${isHero ? 'col-span-2 bg-surfaceVariant/10 flex flex-row' : 'col-span-1'}
+                                            `}
+                                            style={{ animationDelay: `${index * 100}ms` }}
+                                        >
+                                            {/* Hero Card Layout */}
+                                            {isHero ? (
+                                                <>
+                                                    <div className="w-1/3 shrink-0 relative">
+                                                        <img 
+                                                            src={rec.imageUrl} 
+                                                            className="w-full h-full object-cover" 
+                                                            alt={rec.title} 
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#1E1C22]/90 sm:hidden" />
+                                                    </div>
+                                                    <div className="p-4 flex flex-col justify-center flex-1 relative">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px] font-bold uppercase tracking-wider">Featured</span>
+                                                            <div className="flex items-center gap-1 text-xs text-yellow-400 font-bold">
+                                                                <Star size={10} fill="currentColor" /> {rec.score}
+                                                            </div>
+                                                        </div>
+                                                        <h4 className="text-base font-bold text-white leading-tight mb-2 line-clamp-2 group-hover:text-primary transition-colors">{rec.title}</h4>
+                                                        <p className="text-xs text-onSurfaceVariant/80 line-clamp-2 mb-3">{rec.synopsis || 'No description available.'}</p>
+                                                        <div className="flex items-center gap-3 text-[10px] text-onSurfaceVariant/50 uppercase tracking-wider font-medium">
+                                                            <span>{rec.type || 'TV'}</span>
+                                                            <span>•</span>
+                                                            <span>{rec.episodes ? `${rec.episodes} EPS` : '? EPS'}</span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                /* Standard Card Layout */
+                                                <>
+                                                    <div className="relative aspect-[2/3] mb-2">
+                                                        <img 
+                                                            src={rec.imageUrl} 
+                                                            className="w-full h-full object-cover rounded-xl group-hover:brightness-110 transition-all" 
+                                                            alt={rec.title} 
+                                                        />
+                                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
+                                                            <Star size={8} fill="currentColor" /> {rec.score}
+                                                        </div>
+                                                    </div>
+                                                    <h4 className="text-xs font-medium text-white line-clamp-2 leading-tight group-hover:text-primary transition-colors">{rec.title}</h4>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -1644,8 +1668,8 @@ const App = () => {
     <HashRouter>
       <ScrollToTop />
       <AppProvider>
-        {/* Removed overflow-hidden to allow body scroll for non-fixed pages, relying on ScrollToTop */}
-        <div className="max-w-md mx-auto bg-background min-h-screen shadow-2xl relative font-sans text-onSurface selection:bg-primary/30">
+        {/* Removed max-w-md, now full width for desktop responsiveness */}
+        <div className="w-full bg-background min-h-screen shadow-2xl relative font-sans text-onSurface selection:bg-primary/30">
             <Routes>
               <Route path="/login" element={<LoginScreen />} />
               <Route element={<Layout />}>
@@ -1653,6 +1677,7 @@ const App = () => {
                 <Route path="/trending" element={<ProtectedRoute><TrendingScreen /></ProtectedRoute>} />
                 <Route path="/list" element={<ProtectedRoute><MyListScreen /></ProtectedRoute>} />
                 <Route path="/detail/:id" element={<ProtectedRoute><DetailScreen /></ProtectedRoute>} />
+                <Route path="/studio/:id" element={<ProtectedRoute><StudioScreen /></ProtectedRoute>} />
               </Route>
             </Routes>
             <NetworkStatus />
