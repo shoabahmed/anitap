@@ -31,6 +31,7 @@ export interface Anime {
   rating?: string; // Age rating
   season?: string;
   year?: number;
+  type?: string;
   trailerUrl?: string;
   background?: string; // Background/Summary info
 }

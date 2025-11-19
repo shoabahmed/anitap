@@ -93,6 +93,10 @@ export const GENRE_LIST = [
 ];
 
 export const searchAnime = async (query: string, page: number = 1, filters?: SearchFilters): Promise<SearchResult> => {
+  if (!navigator.onLine) {
+    return { data: [], hasNextPage: false, error: "No internet connection." };
+  }
+
   try {
     const params = new URLSearchParams();
     if (query) params.append('q', query);
@@ -142,6 +146,7 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
 };
 
 export const getTrendingAnime = async (): Promise<Anime[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/top/anime?filter=airing&limit=10`);
         if (!response.ok) return [];
@@ -153,6 +158,7 @@ export const getTrendingAnime = async (): Promise<Anime[]> => {
 };
 
 export const getAnimeFullDetails = async (id: number): Promise<Anime | null> => {
+    if (!navigator.onLine) return null;
     try {
         const response = await fetch(`${BASE_URL}/anime/${id}/full`);
         if (!response.ok) return null;
@@ -165,6 +171,7 @@ export const getAnimeFullDetails = async (id: number): Promise<Anime | null> => 
 };
 
 export const getAnimeEpisodes = async (id: number): Promise<Episode[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/anime/${id}/episodes`);
         if (!response.ok) return [];
@@ -185,6 +192,7 @@ export const getAnimeEpisodes = async (id: number): Promise<Episode[]> => {
 };
 
 export const getAnimeCharacters = async (id: number): Promise<Character[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/anime/${id}/characters`);
         if (!response.ok) return [];
@@ -210,6 +218,7 @@ export const getAnimeCharacters = async (id: number): Promise<Character[]> => {
 };
 
 export const getAnimeRelations = async (id: number): Promise<Relation[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/anime/${id}/relations`);
         if (!response.ok) return [];
@@ -224,6 +233,7 @@ export const getAnimeRelations = async (id: number): Promise<Relation[]> => {
 };
 
 export const getAnimeRecommendationsById = async (id: number): Promise<Anime[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/anime/${id}/recommendations`);
         if (!response.ok) return [];
@@ -235,6 +245,7 @@ export const getAnimeRecommendationsById = async (id: number): Promise<Anime[]> 
 };
 
 export const getAnimeRecommendations = async (): Promise<Anime[]> => {
+    if (!navigator.onLine) return [];
     try {
         const response = await fetch(`${BASE_URL}/top/anime?filter=airing&limit=20`);
         if (!response.ok) return [];
@@ -266,6 +277,7 @@ const transformJikanAnime = (item: any): Anime => {
         rating: item.rating,
         season: item.season,
         year: item.year,
+        type: item.type,
         trailerUrl: item.trailer?.embed_url,
         userStatus: undefined
     };

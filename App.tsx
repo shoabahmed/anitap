@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Home, Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
 
 import { Anime, AnimeStatus, User, Character, Episode, Relation, FilterPreset } from './types';
@@ -20,6 +20,18 @@ const SORT_OPTIONS = [
 const MAIN_GENRES = [
     'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Sci-Fi', 'Slice of Life', 'Mystery', 'Horror', 'Sports'
 ];
+
+// --- Utility Functions ---
+
+// Fisher-Yates Shuffle for randomization
+function shuffleArray<T>(array: T[]): T[] {
+    const newArr = [...array];
+    for (let i = newArr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    }
+    return newArr;
+}
 
 // --- Context ---
 
@@ -52,6 +64,8 @@ interface AppContextType {
   
   lastSearchedParams: React.MutableRefObject<string>;
   trendingAnime: Anime[];
+  
+  isOnline: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -63,6 +77,31 @@ export const useAppContext = () => {
 };
 
 // --- Components ---
+
+const NetworkStatus = () => {
+    const { isOnline } = useAppContext();
+    if (isOnline) return null;
+
+    return (
+        <div className="fixed bottom-24 left-4 right-4 z-[100] bg-error text-[#21005d] p-4 rounded-2xl shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5 fade-in duration-300 border border-error/50">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-full text-onPrimary">
+                    <WifiOff size={20} strokeWidth={2.5} />
+                </div>
+                <div>
+                    <p className="font-bold text-sm text-onPrimary leading-tight">You are currently offline</p>
+                    <p className="text-[10px] text-onPrimary/80 font-medium uppercase tracking-wide">Content may be outdated</p>
+                </div>
+            </div>
+            <button 
+                onClick={() => window.location.reload()} 
+                className="px-4 py-2 bg-white/20 rounded-xl text-xs font-bold text-onPrimary hover:bg-white/30 active:scale-95 transition-all"
+            >
+                Retry
+            </button>
+        </div>
+    );
+};
 
 const GoogleAd = ({ className }: { className?: string }) => {
     const adRef = useRef<HTMLModElement>(null);
@@ -134,7 +173,7 @@ const BottomNav = () => {
 };
 
 const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-    const { searchFilters, setSearchFilters, resetFilters, applyPreset } = useAppContext();
+    const { searchFilters, setSearchFilters, resetFilters, applyPreset, isOnline } = useAppContext();
     const [localFilters, setLocalFilters] = useState(searchFilters);
     
     const currentYear = new Date().getFullYear();
@@ -153,6 +192,7 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
     };
 
     const handleApply = () => {
+        if (!isOnline) return;
         setSearchFilters(localFilters);
         onClose();
     };
@@ -164,6 +204,7 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
     };
 
     const handlePresetClick = (preset: FilterPreset) => {
+        if (!isOnline) return;
         applyPreset(preset);
         onClose();
     }
@@ -206,7 +247,8 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
                                         <button 
                                             key={preset}
                                             onClick={() => handlePresetClick(preset)}
-                                            className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-xs font-medium hover:bg-primary/20 active:scale-95 transition-all"
+                                            disabled={!isOnline}
+                                            className={`px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-xs font-medium hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-50`}
                                         >
                                             {preset}
                                         </button>
@@ -374,7 +416,13 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
                         <div className="p-6 bg-[#201E24] border-t border-white/5 flex gap-4 z-20 pb-10">
                             <button onClick={handleReset} className="flex-1 py-3.5 rounded-xl font-bold text-sm text-onSurfaceVariant bg-surfaceVariant/20 hover:bg-surfaceVariant/30 transition-colors">Reset</button>
-                            <button onClick={handleApply} className="flex-[2] bg-primary text-onPrimary py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 active:scale-95 transition-transform">Show Results</button>
+                            <button 
+                                onClick={handleApply} 
+                                disabled={!isOnline}
+                                className="flex-[2] bg-primary text-onPrimary py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100"
+                            >
+                                Show Results
+                            </button>
                         </div>
                     </motion.div>
                 </>
@@ -500,6 +548,13 @@ const HeroCarousel: React.FC<{ animeList: Anime[], onSelect: (a: Anime) => void 
     )
 };
 
+interface LegalSource {
+    name: string;
+    url: string;
+    type: 'youtube' | 'service';
+    icon: React.ElementType;
+}
+
 // --- Pages ---
 
 const DiscoverScreen = () => {
@@ -510,7 +565,7 @@ const DiscoverScreen = () => {
       loadMoreResults, hasNextPage, isLoadingMore,
       handleNewSearch, searchError, setSearchError,
       searchFilters, setSearchFilters, resetFilters, lastSearchedParams,
-      trendingAnime
+      trendingAnime, isOnline
   } = useAppContext();
   
   const navigate = useNavigate();
@@ -519,6 +574,7 @@ const DiscoverScreen = () => {
   
   // Handle Genre Chip Click
   const handleGenreClick = (genreName: string) => {
+      if (!isOnline) return;
       const genre = GeminiService.GENRE_LIST.find(g => g.name === genreName);
       if (genre) {
           setSearchFilters({ ...searchFilters, genres: [genre.id] });
@@ -534,6 +590,11 @@ const DiscoverScreen = () => {
         
         // Explicitly search if query exists OR filters exist (more than just sfw default)
         if (searchQuery.length >= 2 || Object.keys(searchFilters).length > 1) {
+             if (!isOnline) {
+                 setSearchError("Unable to connect to AI services. Please check your internet.");
+                 return;
+             }
+
              setIsSearching(true);
              setSearchError(null);
              
@@ -550,13 +611,13 @@ const DiscoverScreen = () => {
         }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery, searchFilters]);
+  }, [searchQuery, searchFilters, isOnline]);
 
   // Infinite Scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasNextPage && !isLoadingMore && !isSearching) {
+        if (entries[0].isIntersecting && hasNextPage && !isLoadingMore && !isSearching && isOnline) {
           loadMoreResults();
         }
       },
@@ -564,7 +625,7 @@ const DiscoverScreen = () => {
     );
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
-  }, [hasNextPage, isLoadingMore, isSearching, loadMoreResults]);
+  }, [hasNextPage, isLoadingMore, isSearching, loadMoreResults, isOnline]);
 
   const showResults = searchQuery.length > 0 || Object.keys(searchFilters).length > 1;
 
@@ -585,8 +646,9 @@ const DiscoverScreen = () => {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      disabled={!isOnline}
                       placeholder="Search anime, studios..."
-                      className="w-full bg-surfaceVariant/10 border border-white/5 text-onSurface rounded-2xl pl-11 pr-10 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder-onSurfaceVariant/50"
+                      className="w-full bg-surfaceVariant/10 border border-white/5 text-onSurface rounded-2xl pl-11 pr-10 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder-onSurfaceVariant/50 disabled:opacity-50"
                   />
                   {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-onSurfaceVariant hover:text-onSurface p-1">
@@ -596,7 +658,8 @@ const DiscoverScreen = () => {
               </div>
               <button 
                   onClick={() => setIsFilterOpen(true)}
-                  className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all border ${Object.keys(searchFilters).length > 1 ? 'bg-primary text-onPrimary border-primary' : 'bg-surfaceVariant/10 text-onSurfaceVariant border-white/5 hover:bg-surfaceVariant/20'}`}
+                  disabled={!isOnline}
+                  className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all border disabled:opacity-50 ${Object.keys(searchFilters).length > 1 ? 'bg-primary text-onPrimary border-primary' : 'bg-surfaceVariant/10 text-onSurfaceVariant border-white/5 hover:bg-surfaceVariant/20'}`}
               >
                   <SlidersHorizontal size={18} />
               </button>
@@ -624,7 +687,8 @@ const DiscoverScreen = () => {
                              <button 
                                 key={genre} 
                                 onClick={() => handleGenreClick(genre)}
-                                className="px-4 py-2 bg-surfaceVariant/10 border border-white/5 rounded-xl text-xs font-medium text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all"
+                                disabled={!isOnline}
+                                className="px-4 py-2 bg-surfaceVariant/10 border border-white/5 rounded-xl text-xs font-medium text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50"
                              >
                                  {genre}
                              </button>
@@ -656,6 +720,14 @@ const DiscoverScreen = () => {
                       <SkeletonCard />
                       <SkeletonCard />
                       <SkeletonCard />
+                  </div>
+              )}
+                
+              {/* Error Display inside content area */}
+              {searchError && (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <AlertCircle size={32} className="text-error mb-2" />
+                      <p className="text-sm font-medium text-white">{searchError}</p>
                   </div>
               )}
 
@@ -765,7 +837,7 @@ const DetailScreen = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const params = useParams();
-    const { addToMyList, myList, updateAnimeStatus, removeFromMyList } = useAppContext();
+    const { addToMyList, myList, updateAnimeStatus, removeFromMyList, isOnline } = useAppContext();
     const scrollRef = useRef(null);
     const { scrollY } = useScroll({ container: scrollRef });
     
@@ -785,14 +857,56 @@ const DetailScreen = () => {
     const [error, setError] = useState<string | null>(null);
     const [showFullSynopsis, setShowFullSynopsis] = useState(false);
 
+    // Watch Options State
+    const [isWatchDropdownOpen, setIsWatchDropdownOpen] = useState(false);
+    const [legalSources, setLegalSources] = useState<LegalSource[]>([]);
+    const [isCheckingSources, setIsCheckingSources] = useState(false);
+    const watchDropdownRef = useRef<HTMLDivElement>(null);
+
     // Dummy resume state for UI demo
     const resumeEp = Math.floor(Math.random() * 12) + 1;
     const resumeTime = "12:42";
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (watchDropdownRef.current && !watchDropdownRef.current.contains(event.target as Node)) {
+                setIsWatchDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const checkLegalAvailability = async (title: string) => {
+        if (!isOnline) return;
+
+        setIsCheckingSources(true);
+        // Simulate network delay for checking availability
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        const encodedTitle = encodeURIComponent(title);
+        setLegalSources([
+            { name: 'Muse Asia', url: `https://www.youtube.com/results?search_query=Muse+Asia+${encodedTitle}`, type: 'youtube', icon: Youtube },
+            { name: 'Ani-One Asia', url: `https://www.youtube.com/results?search_query=Ani-One+Asia+${encodedTitle}`, type: 'youtube', icon: Youtube },
+            { name: 'Netflix', url: `https://www.netflix.com/search?q=${encodedTitle}`, type: 'service', icon: MonitorPlay },
+            { name: 'Crunchyroll', url: `https://www.crunchyroll.com/search?q=${encodedTitle}`, type: 'service', icon: ExternalLink },
+        ]);
+        setIsCheckingSources(false);
+    };
 
     useEffect(() => {
         const fetchDetails = async () => {
             if (!animeId || isNaN(animeId)) {
                 if (!fullAnime) setError("Invalid Anime ID");
+                setLoading(false);
+                return;
+            }
+
+            // If we have local data (e.g. from MyList), don't block on loading if offline
+            if (!isOnline && fullAnime) {
                 setLoading(false);
                 return;
             }
@@ -804,12 +918,18 @@ const DetailScreen = () => {
                 const details = await GeminiService.getAnimeFullDetails(animeId);
                 if (details) {
                     setFullAnime(prev => ({ ...prev, ...details }));
+                    checkLegalAvailability(details.title); // Trigger check
                 } else if (!fullAnime) {
-                    setError("Failed to load anime details.");
+                    // If offline and no local data, show error
+                    if (!isOnline) setError("No internet connection.");
+                    else setError("Failed to load anime details.");
+                } else {
+                    // We have stale data, try to check sources if possible
+                     if (isOnline) checkLegalAvailability(fullAnime.title);
                 }
 
                 // Continue fetching even if details failed slightly, but stop if major error
-                if (details || fullAnime) {
+                if ((details || fullAnime) && isOnline) {
                     const eps = await GeminiService.getAnimeEpisodes(animeId);
                     setEpisodes(eps);
 
@@ -822,7 +942,8 @@ const DetailScreen = () => {
                     ]);
                     
                     setCharacters(chars);
-                    setRecommendations(recs);
+                    // Randomize recommendations on load
+                    setRecommendations(shuffleArray(recs));
                     setRelations(rels);
                 }
             } catch (e) {
@@ -832,7 +953,7 @@ const DetailScreen = () => {
             }
         };
         fetchDetails();
-    }, [animeId]);
+    }, [animeId, isOnline]);
 
     if (loading && !fullAnime) return <div className="min-h-screen flex items-center justify-center text-onSurfaceVariant"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
     
@@ -923,13 +1044,80 @@ const DetailScreen = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="mt-12 flex gap-3 mb-8">
-                     <button 
-                        onClick={() => handleWatch()}
-                        className="flex-1 bg-primary hover:bg-primary/90 text-onPrimary font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2"
-                     >
-                         <Play size={20} fill="currentColor" /> Watch Now
-                     </button>
+                <div className="mt-12 flex gap-3 mb-8 z-50 relative">
+                    {/* Watch Options Dropdown */}
+                     <div className="flex-1 relative" ref={watchDropdownRef}>
+                        <button 
+                            onClick={() => setIsWatchDropdownOpen(!isWatchDropdownOpen)}
+                            className="w-full bg-primary hover:bg-primary/90 text-onPrimary font-bold py-4 rounded-2xl shadow-lg shadow-primary/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Play size={20} fill="currentColor" /> Watch Options <ChevronDown size={16} className={`transition-transform duration-200 ${isWatchDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <AnimatePresence>
+                            {isWatchDropdownOpen && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-[#2B2930] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 p-2 flex flex-col gap-1"
+                                >
+                                    <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-onSurfaceVariant/60 font-bold">Streaming Sources</div>
+                                    
+                                    {/* Unofficial */}
+                                    <button 
+                                        onClick={() => handleWatch()}
+                                        className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                                            <Play size={14} fill="currentColor" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-sm font-bold text-white">HiAnime</div>
+                                            <div className="text-[10px] text-onSurfaceVariant">Unofficial • Free</div>
+                                        </div>
+                                        <ExternalLink size={14} className="text-onSurfaceVariant/50" />
+                                    </button>
+
+                                    <div className="h-px bg-white/5 my-1 mx-2" />
+                                    
+                                    {/* Legal Sources */}
+                                    {isCheckingSources ? (
+                                        <div className="py-4 flex flex-col items-center justify-center text-onSurfaceVariant/50 gap-2">
+                                            <Loader2 size={20} className="animate-spin text-primary" />
+                                            <span className="text-xs">Checking availability...</span>
+                                        </div>
+                                    ) : (
+                                        legalSources.map((source) => (
+                                            <a 
+                                                key={source.name}
+                                                href={source.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-3 w-full px-3 py-3 hover:bg-white/10 rounded-xl transition-colors text-left group"
+                                            >
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${source.type === 'youtube' ? 'bg-red-500/20 text-red-500 group-hover:bg-red-600 group-hover:text-white' : 'bg-surfaceVariant text-onSurfaceVariant group-hover:bg-white group-hover:text-black'}`}>
+                                                    <source.icon size={16} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-bold text-white">{source.name}</div>
+                                                    <div className="text-[10px] text-onSurfaceVariant">Official • Legal</div>
+                                                </div>
+                                                <ExternalLink size={14} className="text-onSurfaceVariant/50" />
+                                            </a>
+                                        ))
+                                    )}
+
+                                    {!isOnline && !isCheckingSources && legalSources.length === 0 && (
+                                         <div className="py-3 px-4 text-center text-xs text-onSurfaceVariant/50">
+                                            Check internet to see legal sources
+                                         </div>
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                     </div>
                      
                      {!isAdded ? (
                          <button 
@@ -1071,26 +1259,75 @@ const DetailScreen = () => {
                     </div>
                 )}
 
-                {/* Recommendations */}
+                {/* Recommendations (Refactored) */}
                 {recommendations.length > 0 && (
                     <div className="mb-8">
-                        <h3 className="text-base font-bold text-white mb-4">More Like This</h3>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-4">
-                            {recommendations.map(rec => (
-                                <div 
-                                    key={rec.id} 
-                                    onClick={() => navigate(`/detail/${rec.id}`, { state: { anime: rec } })}
-                                    className="w-32 shrink-0 cursor-pointer group"
-                                >
-                                    <div className="relative aspect-[2/3] rounded-xl overflow-hidden mb-2">
-                                        <img src={rec.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt={rec.title} />
-                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
-                                            <Star size={8} fill="currentColor" /> {rec.score}
-                                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-bold text-white">More Like This</h3>
+                            <Sparkle size={16} className="text-primary animate-pulse" />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            {recommendations.map((rec, index) => {
+                                const isHero = index === 0;
+                                return (
+                                    <div 
+                                        key={rec.id} 
+                                        onClick={() => navigate(`/detail/${rec.id}`, { state: { anime: rec } })}
+                                        className={`
+                                            cursor-pointer group relative rounded-xl overflow-hidden 
+                                            transition-all duration-300 hover:scale-[1.02] hover:shadow-xl
+                                            animate-fade-in-up
+                                            ${isHero ? 'col-span-2 bg-surfaceVariant/10 flex flex-row' : 'col-span-1'}
+                                        `}
+                                        style={{ animationDelay: `${index * 100}ms` }}
+                                    >
+                                        {/* Hero Card Layout */}
+                                        {isHero ? (
+                                            <>
+                                                <div className="w-1/3 shrink-0 relative">
+                                                    <img 
+                                                        src={rec.imageUrl} 
+                                                        className="w-full h-full object-cover" 
+                                                        alt={rec.title} 
+                                                    />
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#1E1C22]/90 sm:hidden" />
+                                                </div>
+                                                <div className="p-4 flex flex-col justify-center flex-1 relative">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px] font-bold uppercase tracking-wider">Featured</span>
+                                                        <div className="flex items-center gap-1 text-xs text-yellow-400 font-bold">
+                                                            <Star size={10} fill="currentColor" /> {rec.score}
+                                                        </div>
+                                                    </div>
+                                                    <h4 className="text-base font-bold text-white leading-tight mb-2 line-clamp-2 group-hover:text-primary transition-colors">{rec.title}</h4>
+                                                    <p className="text-xs text-onSurfaceVariant/80 line-clamp-2 mb-3">{rec.synopsis || 'No description available.'}</p>
+                                                    <div className="flex items-center gap-3 text-[10px] text-onSurfaceVariant/50 uppercase tracking-wider font-medium">
+                                                        <span>{rec.type || 'TV'}</span>
+                                                        <span>•</span>
+                                                        <span>{rec.episodes ? `${rec.episodes} EPS` : '? EPS'}</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            /* Standard Card Layout */
+                                            <>
+                                                <div className="relative aspect-[2/3] mb-2">
+                                                    <img 
+                                                        src={rec.imageUrl} 
+                                                        className="w-full h-full object-cover rounded-xl group-hover:brightness-110 transition-all" 
+                                                        alt={rec.title} 
+                                                    />
+                                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-bold text-yellow-400 flex items-center gap-1">
+                                                        <Star size={8} fill="currentColor" /> {rec.score}
+                                                    </div>
+                                                </div>
+                                                <h4 className="text-xs font-medium text-white line-clamp-2 leading-tight group-hover:text-primary transition-colors">{rec.title}</h4>
+                                            </>
+                                        )}
                                     </div>
-                                    <h4 className="text-xs font-medium text-white line-clamp-2 leading-tight">{rec.title}</h4>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -1172,18 +1409,36 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   useEffect(() => {
     localStorage.setItem('myAnimeList', JSON.stringify(myList));
   }, [myList]);
 
+  // Online/Offline Listener
+  useEffect(() => {
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      
+      return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+      };
+  }, []);
+
   // Initial Data Load
   useEffect(() => {
-      GeminiService.getTrendingAnime().then(setTrendingAnime);
-      // Also load default recs for discover page bottom
-      GeminiService.getAnimeRecommendations().then(data => {
-          setSearchResultsState(data);
-      });
-  }, []);
+      if (isOnline) {
+          GeminiService.getTrendingAnime().then(setTrendingAnime);
+          // Also load default recs for discover page bottom
+          GeminiService.getAnimeRecommendations().then(data => {
+              setSearchResultsState(data);
+          });
+      }
+  }, [isOnline]);
 
   const setSearchQuery = (q: string) => {
       setSearchQueryState(q);
@@ -1196,7 +1451,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const resetFilters = () => {
       setSearchFilters({ sfw: true });
       setSearchQuery('');
-      GeminiService.getAnimeRecommendations().then(setSearchResultsState);
+      if (isOnline) {
+        GeminiService.getAnimeRecommendations().then(setSearchResultsState);
+      }
   };
 
   const applyPreset = (preset: FilterPreset) => {
@@ -1211,7 +1468,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   const loadMoreResults = async () => {
-      if (!hasNextPage || isLoadingMore) return;
+      if (!hasNextPage || isLoadingMore || !isOnline) return;
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
       try {
@@ -1261,7 +1518,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         handleNewSearch,
         searchError, setSearchError,
         searchFilters, setSearchFilters, resetFilters, applyPreset,
-        lastSearchedParams, trendingAnime
+        lastSearchedParams, trendingAnime, isOnline
     }}>
       {children}
     </AppContext.Provider>
@@ -1285,6 +1542,7 @@ const App = () => {
               <Route path="/list" element={<ProtectedRoute><MyListScreen /></ProtectedRoute>} />
               <Route path="/detail/:id" element={<ProtectedRoute><DetailScreen /></ProtectedRoute>} />
             </Routes>
+            <NetworkStatus />
             <BottomNav />
         </div>
       </AppProvider>
