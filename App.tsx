@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
 
@@ -1630,7 +1630,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const App = () => {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AppProvider>
         <div className="max-w-md mx-auto bg-background min-h-screen shadow-2xl overflow-hidden relative font-sans text-onSurface selection:bg-primary/30">
             <Routes>
@@ -1645,7 +1645,7 @@ const App = () => {
             <NetworkStatus />
         </div>
       </AppProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 
