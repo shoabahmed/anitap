@@ -1,0 +1,5 @@
+{
+  "name": "AniStream AI",
+  "description": "A modern, Android-styled anime manager powered by Gemini. Manage your watchlist, discover new titles, and stream directly via HiAnime integration.",
+  "requestFramePermissions": []
+}
