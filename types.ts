@@ -1,3 +1,5 @@
+
+
 export enum AnimeStatus {
   Watching = 'Watching',
   Completed = 'Completed',
@@ -34,6 +36,15 @@ export interface Anime {
   type?: string;
   trailerUrl?: string;
   background?: string; // Background/Summary info
+}
+
+export interface NewsItem {
+  title: string;
+  link: string;
+  pubDate: string;
+  thumbnail: string;
+  content: string;
+  source: string;
 }
 
 export interface Episode {
@@ -81,3 +92,73 @@ export type RootStackParamList = {
   MyList: undefined;
   Detail: { animeId: number };
 };
+
+export interface RecentEpisode {
+  id: string;
+  animeTitle: string;
+  episodeNumber: string;
+  url: string;
+  timestamp: string;
+  thumbnail: string;
+}
+
+export interface MALNode {
+  id: number;
+  title: string;
+  main_picture?: {
+    medium?: string;
+    large?: string;
+  };
+  mean?: number;
+  synopsis?: string;
+  media_type?: string;
+  status?: string;
+  num_episodes?: number;
+  start_season?: {
+    year: number;
+    season: string;
+  };
+  genres?: {
+    id: number;
+    name: string;
+  }[];
+  studios?: {
+    id: number;
+    name: string;
+  }[];
+  rank?: number;
+}
+
+export interface AnimeResponse {
+  data: {
+    node: MALNode;
+  }[];
+  paging?: {
+    next?: string;
+  };
+}
+
+// --- AniList Types ---
+
+export interface AniListMedia {
+  id: number;
+  idMal?: number; // Critical for Jikan compatibility
+  title: {
+    english: string;
+    romaji: string;
+  };
+  coverImage: {
+    extraLarge: string;
+  };
+  averageScore: number;
+  description: string;
+  episodes?: number;
+}
+
+export interface AniListResponse {
+  data: {
+    Page: {
+      media: AniListMedia[];
+    }
+  }
+}

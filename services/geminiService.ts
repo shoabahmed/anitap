@@ -1,3 +1,4 @@
+
 import { Anime, Character, Episode, Relation } from "../types";
 
 // We use Jikan API (Unofficial MyAnimeList API) to ensure:
@@ -92,6 +93,8 @@ export const GENRE_LIST = [
     { id: 34, name: 'Yuri', group: 'Explicit' }, // Legacy tag
 ];
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const searchAnime = async (query: string, page: number = 1, filters?: SearchFilters): Promise<SearchResult> => {
   if (!navigator.onLine) {
     return { data: [], hasNextPage: false, error: "No internet connection." };
@@ -121,8 +124,9 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
             params.append('order_by', filters.order_by);
             params.append('sort', filters.sort || 'desc');
         } else if (query.length > 0) {
-            // Default
+            // Default search relevance
         } else {
+             // Default for browsing
              params.append('order_by', 'popularity');
              params.append('sort', 'asc'); 
         }
@@ -130,8 +134,8 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
 
     const response = await fetch(`${BASE_URL}/anime?${params.toString()}`);
     
-    if (response.status === 429) return { data: [], hasNextPage: false, error: "Too many requests." };
-    if (response.status >= 500) return { data: [], hasNextPage: false, error: "Database unavailable." };
+    if (response.status === 429) return { data: [], hasNextPage: false, error: "Too many requests. Please wait a moment." };
+    if (response.status >= 500) return { data: [], hasNextPage: false, error: "Jikan API is currently unavailable." };
     if (!response.ok) return { data: [], hasNextPage: false, error: `Error ${response.status}` };
     
     const data = await response.json();
@@ -143,6 +147,18 @@ export const searchAnime = async (query: string, page: number = 1, filters?: Sea
   } catch (error) {
     return { data: [], hasNextPage: false, error: "Network error." };
   }
+};
+
+export const getTopAnime = async (page: number = 1): Promise<Anime[]> => {
+    if (!navigator.onLine) return [];
+    try {
+        const response = await fetch(`${BASE_URL}/top/anime?page=${page}&limit=24&filter=bypopularity`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (data.data || []).map(transformJikanAnime);
+    } catch (e) {
+        return [];
+    }
 };
 
 export const getTrendingAnime = async (): Promise<Anime[]> => {
@@ -160,6 +176,7 @@ export const getTrendingAnime = async (): Promise<Anime[]> => {
 export const getAnimeFullDetails = async (id: number): Promise<Anime | null> => {
     if (!navigator.onLine) return null;
     try {
+        await wait(450); // Delay to help with Jikan rate limits
         const response = await fetch(`${BASE_URL}/anime/${id}/full`);
         if (!response.ok) return null;
         const data = await response.json();
@@ -173,7 +190,9 @@ export const getAnimeFullDetails = async (id: number): Promise<Anime | null> => 
 export const getAnimeEpisodes = async (id: number): Promise<Episode[]> => {
     if (!navigator.onLine) return [];
     try {
-        const response = await fetch(`${BASE_URL}/anime/${id}/episodes`);
+        await wait(450);
+        // We request page 1 explicitly
+        const response = await fetch(`${BASE_URL}/anime/${id}/episodes?page=1`);
         if (!response.ok) return [];
         const data = await response.json();
         return (data.data || []).map((item: any) => ({
@@ -194,6 +213,7 @@ export const getAnimeEpisodes = async (id: number): Promise<Episode[]> => {
 export const getAnimeCharacters = async (id: number): Promise<Character[]> => {
     if (!navigator.onLine) return [];
     try {
+        await wait(450);
         const response = await fetch(`${BASE_URL}/anime/${id}/characters`);
         if (!response.ok) return [];
         const data = await response.json();
@@ -220,6 +240,7 @@ export const getAnimeCharacters = async (id: number): Promise<Character[]> => {
 export const getAnimeRelations = async (id: number): Promise<Relation[]> => {
     if (!navigator.onLine) return [];
     try {
+        await wait(450);
         const response = await fetch(`${BASE_URL}/anime/${id}/relations`);
         if (!response.ok) return [];
         const data = await response.json();
@@ -235,6 +256,7 @@ export const getAnimeRelations = async (id: number): Promise<Relation[]> => {
 export const getAnimeRecommendationsById = async (id: number): Promise<Anime[]> => {
     if (!navigator.onLine) return [];
     try {
+        await wait(450);
         const response = await fetch(`${BASE_URL}/anime/${id}/recommendations`);
         if (!response.ok) return [];
         const data = await response.json();

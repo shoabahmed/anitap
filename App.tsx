@@ -1,10 +1,18 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { Home, Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff } from 'lucide-react';
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
+import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
 
-import { Anime, AnimeStatus, User, Character, Episode, Relation, FilterPreset } from './types';
-import * as GeminiService from './services/geminiService';
+import { Anime, AnimeStatus, User, Character, Episode, Relation, FilterPreset, RecentEpisode, NewsItem } from './types';
+import * as GeminiService from './services/geminiService'; 
+import * as LiveChartService from './services/liveChartService';
+import * as AniListService from './services/anilist';
+import * as NewsService from './services/news';
+import NewsCard from './components/NewsCard';
+import Layout from './components/Layout';
+import TrendingScreen from './pages/Trending';
+import { VerticalAnimeCard, HorizontalAnimeCard, SkeletonCard } from './components/AnimeCard';
+import { TrendingSlider } from './components/TrendingSlider';
 
 // --- Constants ---
 
@@ -17,13 +25,8 @@ const SORT_OPTIONS = [
   { label: 'Episodes (Most)', value: 'episodes', sort: 'desc' },
 ];
 
-const MAIN_GENRES = [
-    'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Sci-Fi', 'Slice of Life', 'Mystery', 'Horror', 'Sports'
-];
-
 // --- Utility Functions ---
 
-// Fisher-Yates Shuffle for randomization
 function shuffleArray<T>(array: T[]): T[] {
     const newArr = [...array];
     for (let i = newArr.length - 1; i > 0; i--) {
@@ -31,6 +34,64 @@ function shuffleArray<T>(array: T[]): T[] {
         [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
     }
     return newArr;
+}
+
+function formatTimeAgo(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+}
+
+// Interleave News into Anime array: 1 News Item after every 6 Anime Items
+function interleaveData(animeList: Anime[], newsList: NewsItem[]): (Anime | NewsItem)[] {
+    if (!newsList.length) return animeList;
+
+    const combined: (Anime | NewsItem)[] = [];
+    let animeCount = 0;
+    let newsIndex = 0;
+
+    animeList.forEach((item) => {
+        combined.push(item);
+        animeCount++;
+
+        // After every 6th anime, insert a news item if available
+        if (animeCount % 6 === 0) {
+            if (newsIndex < newsList.length) {
+                combined.push(newsList[newsIndex]);
+                // Cycle news if we run out to keep the pattern
+                newsIndex = (newsIndex + 1) % newsList.length; 
+            }
+        }
+    });
+
+    return combined;
+}
+
+// Helper to remove duplicates based on ID (for Anime) or Link (for News)
+function deduplicateItems(currentItems: (Anime | NewsItem)[], newItems: (Anime | NewsItem)[]): (Anime | NewsItem)[] {
+    const seenIds = new Set<number | string>();
+    
+    // Index existing items
+    currentItems.forEach(item => {
+        if ('id' in item) seenIds.add(item.id);
+        else if ('link' in item) seenIds.add(item.link);
+    });
+
+    const filteredNewItems = newItems.filter(item => {
+        const key = 'id' in item ? item.id : item.link;
+        if (seenIds.has(key)) return false;
+        seenIds.add(key);
+        return true;
+    });
+
+    return filteredNewItems;
 }
 
 // --- Context ---
@@ -43,10 +104,11 @@ interface AppContextType {
   addToMyList: (anime: Anime, status: AnimeStatus) => void;
   removeFromMyList: (animeId: number) => void;
   updateAnimeStatus: (animeId: number, status: AnimeStatus, score?: number) => void;
+  updateProgress: (animeId: number, progress: number) => void;
   
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  searchResults: Anime[];
+  searchResults: (Anime | NewsItem)[];
   setSearchResults: (results: Anime[]) => void;
   isSearching: boolean;
   setIsSearching: (v: boolean) => void;
@@ -105,16 +167,25 @@ const NetworkStatus = () => {
 
 const GoogleAd = ({ className }: { className?: string }) => {
     const adRef = useRef<HTMLModElement>(null);
+    const initialized = useRef(false);
 
     useEffect(() => {
-        try {
-            const adsbygoogle = (window as any).adsbygoogle || [];
-            if (adRef.current && adRef.current.innerHTML === "") {
-                adsbygoogle.push({});
+        const timer = setTimeout(() => {
+            try {
+                if (initialized.current) return;
+                const adsbygoogle = (window as any).adsbygoogle || [];
+                // Double check existence and emptiness before pushing
+                if (adRef.current && adRef.current.innerHTML === "") {
+                    if (!initialized.current) {
+                        adsbygoogle.push({});
+                        initialized.current = true;
+                    }
+                }
+            } catch (e) {
+                // Silent catch for React Strict Mode re-mount issues
             }
-        } catch (e) {
-            console.error("AdSense error", e);
-        }
+        }, 200);
+        return () => clearTimeout(timer);
     }, []);
 
     return (
@@ -132,53 +203,10 @@ const GoogleAd = ({ className }: { className?: string }) => {
     );
 };
 
-const BottomNav = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const tabs = [
-    { name: 'Discover', icon: Compass, path: '/' },
-    { name: 'My List', icon: ListIcon, path: '/list' },
-  ];
-
-  if (location.pathname === '/login' || location.pathname.startsWith('/detail')) return null;
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50">
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none" />
-        <div className="relative bg-[#1E1C22]/95 backdrop-blur-xl border-t border-white/5 pb-safe pt-3 px-6 h-20 flex justify-around items-start rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.3)]">
-          {tabs.map((tab) => {
-            const isActive = location.pathname === tab.path;
-            return (
-              <button
-                key={tab.name}
-                onClick={() => navigate(tab.path)}
-                className="group flex flex-col items-center gap-1 relative"
-              >
-                <motion.div 
-                    whileTap={{ scale: 0.9 }}
-                    animate={{ backgroundColor: isActive ? "rgba(103, 80, 164, 0.15)" : "transparent" }}
-                    className={`p-2 rounded-2xl transition-all duration-300 ${isActive ? 'text-primary' : 'text-onSurfaceVariant/60'}`}
-                >
-                  <tab.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                </motion.div>
-                <span className={`text-[10px] font-medium transition-colors ${isActive ? 'text-onSurface' : 'text-onSurfaceVariant/60'}`}>
-                  {tab.name}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-    </div>
-  );
-};
-
 const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
     const { searchFilters, setSearchFilters, resetFilters, applyPreset, isOnline } = useAppContext();
     const [localFilters, setLocalFilters] = useState(searchFilters);
     
-    const currentYear = new Date().getFullYear();
-    const minYear = 1970;
-
     useEffect(() => {
         if (isOpen) setLocalFilters(searchFilters);
     }, [isOpen, searchFilters]);
@@ -256,162 +284,68 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
                                 </div>
                             </section>
 
-                            {/* Sort By */}
-                            <section>
-                                <div className="flex items-center gap-2 mb-3">
-                                    <ArrowUpDown size={16} className="text-primary" />
-                                    <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest">Sort Order</h3>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {SORT_OPTIONS.map(opt => {
-                                        const isSelected = localFilters.order_by === opt.value && localFilters.sort === opt.sort;
-                                        const isActive = isSelected || (!localFilters.order_by && opt.value === 'popularity');
-                                        return (
+                             {/* Genres */}
+                             {groupsOrder.map(group => (
+                                <section key={group}>
+                                    <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">{group}</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {groupedGenres[group]?.map(genre => (
                                             <button
-                                                key={opt.label}
-                                                onClick={() => setLocalFilters({...localFilters, order_by: opt.value as any, sort: opt.sort as any})}
-                                                className={`px-3 py-2.5 rounded-lg text-xs font-medium text-left transition-all flex items-center justify-between border
-                                                ${isActive ? 'bg-primary/20 text-primary border-primary/30' : 'bg-surfaceVariant/10 border-transparent text-onSurfaceVariant hover:bg-surfaceVariant/20'}`}
+                                                key={genre.id}
+                                                onClick={() => toggleGenre(genre.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border
+                                                ${(localFilters.genres || []).includes(genre.id)
+                                                    ? 'bg-primary text-onPrimary border-primary'
+                                                    : 'bg-surfaceVariant/10 text-onSurface border-white/5 hover:border-primary/50'
+                                                }`}
                                             >
-                                                {opt.label}
-                                                {isActive && <Check size={14} />}
+                                                {genre.name}
                                             </button>
-                                        )
-                                    })}
-                                </div>
-                            </section>
-
-                            {/* NSFW Toggle */}
-                            <section className="flex items-center justify-between bg-surfaceVariant/10 p-4 rounded-xl border border-white/5">
-                                <div>
-                                    <h3 className="text-sm font-bold text-onSurface">Show 18+ Content</h3>
-                                    <p className="text-xs text-onSurfaceVariant/60 mt-0.5">Include NSFW results</p>
-                                </div>
-                                <button 
-                                    onClick={() => setLocalFilters({ ...localFilters, sfw: !localFilters.sfw })}
-                                    className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${!localFilters.sfw ? 'bg-error' : 'bg-surfaceVariant'}`}
-                                >
-                                    <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform duration-300 ${!localFilters.sfw ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </button>
-                            </section>
-
-                            {/* Format & Status */}
+                                        ))}
+                                    </div>
+                                </section>
+                            ))}
+                            
+                            {/* Sorting */}
                             <section>
-                                <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">Format & Status</h3>
-                                <div className="flex flex-wrap gap-2 mb-3">
-                                    {['tv', 'movie', 'ova', 'special'].map(t => (
+                                <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">Sort By</h3>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {SORT_OPTIONS.map(opt => (
                                         <button
-                                            key={t}
-                                            onClick={() => setLocalFilters({...localFilters, type: localFilters.type === t ? undefined : t as any})}
-                                            className={`px-4 py-1.5 rounded-full text-xs font-medium capitalize transition-all border
-                                            ${localFilters.type === t ? 'bg-secondary text-white border-secondary' : 'bg-transparent border-white/10 text-onSurfaceVariant hover:border-white/30'}`}
+                                            key={opt.label}
+                                            onClick={() => setLocalFilters(prev => ({ ...prev, order_by: opt.value as any, sort: opt.sort as any }))}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-between
+                                            ${localFilters.order_by === opt.value && localFilters.sort === opt.sort
+                                                ? 'bg-secondary/20 text-secondary border-secondary'
+                                                : 'bg-surfaceVariant/5 text-onSurfaceVariant border-white/5'
+                                            }`}
                                         >
-                                            {t}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {['airing', 'complete', 'upcoming'].map(s => (
-                                        <button
-                                            key={s}
-                                            onClick={() => setLocalFilters({...localFilters, status: localFilters.status === s ? undefined : s as any})}
-                                            className={`px-4 py-1.5 rounded-full text-xs font-medium capitalize transition-all border
-                                            ${localFilters.status === s ? 'bg-secondary text-white border-secondary' : 'bg-transparent border-white/10 text-onSurfaceVariant hover:border-white/30'}`}
-                                        >
-                                            {s}
+                                            {opt.label}
+                                            {localFilters.order_by === opt.value && localFilters.sort === opt.sort && <Check size={14} />}
                                         </button>
                                     ))}
                                 </div>
                             </section>
 
-                            {/* Rating */}
-                             <section>
-                                <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">Age Rating</h3>
+                            {/* Type */}
+                            <section>
+                                <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">Format</h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {['g', 'pg', 'pg13', 'r17'].map(r => (
+                                    {['tv', 'movie', 'ova', 'special'].map(type => (
                                         <button
-                                            key={r}
-                                            onClick={() => setLocalFilters({...localFilters, rating: localFilters.rating === r ? undefined : r as any})}
-                                            className={`px-3 py-1.5 rounded-md text-xs uppercase transition-all border
-                                            ${localFilters.rating === r ? 'bg-secondary text-white border-secondary' : 'bg-transparent border-white/10 text-onSurfaceVariant'}`}
+                                            key={type}
+                                            onClick={() => setLocalFilters(prev => ({ ...prev, type: prev.type === type ? undefined : type as any }))}
+                                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all uppercase border
+                                            ${localFilters.type === type 
+                                                ? 'bg-tertiary/20 text-tertiary border-tertiary' 
+                                                : 'bg-surfaceVariant/5 text-onSurfaceVariant border-white/5'}`}
                                         >
-                                            {r}
+                                            {type}
                                         </button>
                                     ))}
                                 </div>
                             </section>
 
-                            {/* Sliders (Year & Score) */}
-                            <div className="grid grid-cols-1 gap-6">
-                                <section>
-                                    <div className="flex justify-between mb-2">
-                                        <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest">Min Score</h3>
-                                        <span className="text-xs font-mono text-primary">{localFilters.min_score || 0}</span>
-                                    </div>
-                                    <input 
-                                        type="range" min="0" max="10" step="1"
-                                        className="w-full h-1.5 bg-surfaceVariant rounded-lg appearance-none cursor-pointer accent-primary"
-                                        value={localFilters.min_score || 0}
-                                        onChange={(e) => setLocalFilters({...localFilters, min_score: parseInt(e.target.value)})}
-                                    />
-                                </section>
-                                <section>
-                                    <div className="flex justify-between mb-3 items-center">
-                                        <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest">Year Range</h3>
-                                        <span className="text-[10px] font-mono text-primary bg-primary/10 px-2 py-1 rounded">
-                                            {localFilters.start_year || minYear} — {localFilters.end_year || currentYear}
-                                        </span>
-                                    </div>
-                                    <div className="space-y-4 px-1">
-                                        <input 
-                                            type="range" min={minYear} max={currentYear} step="1"
-                                            className="w-full h-1.5 bg-surfaceVariant rounded-lg appearance-none cursor-pointer accent-primary"
-                                            value={localFilters.start_year || minYear}
-                                            onChange={(e) => {
-                                                const val = parseInt(e.target.value);
-                                                setLocalFilters(prev => ({ ...prev, start_year: val, end_year: (prev.end_year || currentYear) < val ? val : prev.end_year }));
-                                            }}
-                                        />
-                                        <input 
-                                            type="range" min={minYear} max={currentYear} step="1"
-                                            className="w-full h-1.5 bg-surfaceVariant rounded-lg appearance-none cursor-pointer accent-primary"
-                                            value={localFilters.end_year || currentYear}
-                                            onChange={(e) => {
-                                                const val = parseInt(e.target.value);
-                                                setLocalFilters(prev => ({ ...prev, end_year: val, start_year: (prev.start_year || minYear) > val ? val : prev.start_year }));
-                                            }}
-                                        />
-                                    </div>
-                                </section>
-                            </div>
-
-                            {/* Genres Grid */}
-                            {groupsOrder.map(group => {
-                                const genres = groupedGenres[group];
-                                if (!genres || genres.length === 0) return null;
-                                if (group === 'Explicit' && localFilters.sfw !== false) return null;
-
-                                return (
-                                    <section key={group}>
-                                        <h3 className="text-xs font-bold text-onSurfaceVariant uppercase tracking-widest mb-3 border-b border-white/5 pb-1">{group}</h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {genres.map(g => {
-                                                const isSelected = (localFilters.genres || []).includes(g.id);
-                                                return (
-                                                    <button
-                                                        key={g.id}
-                                                        onClick={() => toggleGenre(g.id)}
-                                                        className={`px-3 py-1.5 rounded-lg text-xs transition-all border
-                                                        ${isSelected ? 'bg-primary/20 text-primary border-primary' : 'bg-surfaceVariant/10 border-transparent text-onSurfaceVariant hover:bg-surfaceVariant/20'}`}
-                                                    >
-                                                        {g.name}
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    </section>
-                                );
-                            })}
                         </div>
 
                         <div className="p-6 bg-[#201E24] border-t border-white/5 flex gap-4 z-20 pb-10">
@@ -431,121 +365,49 @@ const FilterDrawer = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
     );
 }
 
-const SkeletonCard = () => (
-  <div className="w-full animate-pulse">
-    <div className="aspect-[2/3] bg-surfaceVariant/20 rounded-xl mb-2" />
-    <div className="h-3 bg-surfaceVariant/20 rounded w-3/4 mb-1" />
-    <div className="h-2 bg-surfaceVariant/20 rounded w-1/3" />
-  </div>
-);
+const JustAiredSection: React.FC<{ episodes: RecentEpisode[] }> = ({ episodes }) => {
+    if (!episodes.length) return null;
 
-const VerticalAnimeCard: React.FC<{ anime: Anime; onClick: () => void }> = ({ anime, onClick }) => (
-    <motion.div
-        layout
-        whileTap={{ scale: 0.96 }}
-        onClick={onClick}
-        className="w-full shrink-0 cursor-pointer group"
-    >
-        <div className="relative aspect-[2/3] rounded-xl overflow-hidden mb-2 shadow-md bg-surfaceVariant/20">
-            <img 
-                src={anime.imageUrl} 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                alt={anime.title}
-                loading="lazy"
-                onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/300x450/2d2b33/ffffff?text=${encodeURIComponent(anime.title.substring(0, 5))}`; }}
-            />
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2">
-                <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-yellow-400 flex items-center gap-1">
-                        <Star size={8} fill="currentColor" /> {anime.score}
-                    </span>
-                    {anime.status === 'Currently Airing' && (
-                        <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
-                    )}
-                </div>
-            </div>
-        </div>
-        <h4 className="text-xs font-bold text-onSurface line-clamp-2 leading-tight group-hover:text-primary transition-colors">{anime.title}</h4>
-        <p className="text-[10px] text-onSurfaceVariant mt-0.5">{anime.episodes || '?'} eps</p>
-    </motion.div>
-);
-
-const HorizontalAnimeCard: React.FC<{ anime: Anime; onClick: () => void }> = ({ anime, onClick }) => (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className="bg-[#252329] hover:bg-[#2B2930] transition-colors rounded-2xl overflow-hidden shadow-sm border border-white/5 flex h-32 cursor-pointer group relative"
-    >
-      <div className="w-24 h-full shrink-0 bg-surfaceVariant relative overflow-hidden">
-        <img 
-            src={anime.imageUrl} 
-            alt={anime.title} 
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/300x450/2d2b33/ffffff?text=${encodeURIComponent(anime.title.substring(0, 10))}`; }}
-        />
-      </div>
-      <div className="flex-1 p-3.5 flex flex-col justify-between relative">
-        <div>
-          <div className="flex justify-between items-start gap-2">
-              <h3 className="text-onSurface font-bold text-sm line-clamp-2 leading-tight mb-1">{anime.title}</h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-onSurfaceVariant/70">
-             {anime.status && <span className="px-1.5 py-0.5 rounded bg-white/5 text-[10px] uppercase tracking-wide">{anime.status.split(' ')[0]}</span>}
-             <span>{anime.episodes ? `${anime.episodes} eps` : '? eps'}</span>
-          </div>
-        </div>
-        
-        <div className="w-full bg-surfaceVariant/30 h-1 rounded-full mt-2 overflow-hidden">
-             <div className="bg-primary h-full rounded-full" style={{ width: anime.userProgress ? `${((anime.userProgress || 0) / (anime.episodes || 12)) * 100}%` : '0%' }} />
-        </div>
-
-        <div className="flex justify-between items-end mt-1">
-          <div className="flex items-center gap-1.5 text-yellow-400 font-bold text-xs">
-            <Star size={12} fill="currentColor" />
-            {anime.score || 'N/A'}
-          </div>
-          {anime.userStatus && (
-             <span className={`text-[10px] px-2 py-0.5 rounded font-medium border
-               ${anime.userStatus === AnimeStatus.Watching ? 'bg-primary/10 text-primary border-primary/20' : 
-                 anime.userStatus === AnimeStatus.Completed ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
-                 'bg-gray-600/10 text-gray-400 border-gray-600/20'}`}>
-               {anime.userStatus}
-             </span>
-          )}
-        </div>
-      </div>
-    </motion.div>
-);
-
-const HeroCarousel: React.FC<{ animeList: Anime[], onSelect: (a: Anime) => void }> = ({ animeList, onSelect }) => {
-    if (!animeList.length) return null;
     return (
-        <div className="w-full overflow-x-auto no-scrollbar flex gap-4 px-6 pb-6 snap-x snap-mandatory">
-            {animeList.map(anime => (
-                <div 
-                    key={anime.id} 
-                    onClick={() => onSelect(anime)}
-                    className="relative w-[85vw] sm:w-[300px] aspect-video shrink-0 rounded-2xl overflow-hidden snap-center shadow-lg cursor-pointer border border-white/10"
-                >
-                    <img src={anime.imageUrl} className="w-full h-full object-cover opacity-80" alt={anime.title} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                    <div className="absolute bottom-0 left-0 p-4 w-full">
-                        <div className="flex items-center gap-2 mb-1">
-                             <span className="px-2 py-0.5 bg-white/20 backdrop-blur-md rounded text-[10px] font-bold text-white uppercase">Trending</span>
-                             <div className="flex items-center gap-1 text-xs text-yellow-400 font-bold">
-                                 <Star size={10} fill="currentColor" /> {anime.score}
-                             </div>
-                        </div>
-                        <h3 className="text-lg font-bold text-white line-clamp-1">{anime.title}</h3>
-                    </div>
+        <section className="mb-6">
+            <div className="px-6 mb-3 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Rss size={14} className="text-primary" />
+                    <h2 className="text-sm font-bold text-onSurfaceVariant uppercase tracking-widest">Just Aired</h2>
                 </div>
-            ))}
-        </div>
-    )
+                <span className="text-[10px] text-onSurfaceVariant/60 bg-white/5 px-2 py-0.5 rounded">LiveChart.me</span>
+            </div>
+            <div className="flex gap-3 px-6 overflow-x-auto no-scrollbar pb-2">
+                {episodes.map((ep) => (
+                    <a 
+                        key={ep.id}
+                        href={ep.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 w-[160px] flex flex-col group"
+                    >
+                        <div className="aspect-video bg-surfaceVariant/10 rounded-xl overflow-hidden mb-2 relative border border-white/5">
+                            {ep.thumbnail ? (
+                                <img src={ep.thumbnail} alt={ep.animeTitle} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-surfaceVariant/20">
+                                    <Play size={24} className="text-white/20" />
+                                </div>
+                            )}
+                            <div className="absolute bottom-1 right-1 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded text-[10px] font-bold text-white">
+                                EP {ep.episodeNumber}
+                            </div>
+                        </div>
+                        <h3 className="text-xs font-bold text-white line-clamp-1 group-hover:text-primary transition-colors">{ep.animeTitle}</h3>
+                        <div className="text-[10px] text-onSurfaceVariant flex items-center gap-1">
+                            <Clock size={10} />
+                            {formatTimeAgo(ep.timestamp)}
+                        </div>
+                    </a>
+                ))}
+            </div>
+        </section>
+    );
 };
 
 interface LegalSource {
@@ -571,15 +433,24 @@ const DiscoverScreen = () => {
   const navigate = useNavigate();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const observerTarget = useRef(null);
+  const [recentEpisodes, setRecentEpisodes] = useState<RecentEpisode[]>([]);
+
+  useEffect(() => {
+      const fetchRecent = async () => {
+          if (isOnline) {
+              const recents = await LiveChartService.getRecentEpisodes();
+              setRecentEpisodes(recents);
+          }
+      };
+      fetchRecent();
+  }, [isOnline]);
   
   // Handle Genre Chip Click
-  const handleGenreClick = (genreName: string) => {
+  const handleGenreClick = (genreId: number) => {
       if (!isOnline) return;
-      const genre = GeminiService.GENRE_LIST.find(g => g.name === genreName);
-      if (genre) {
-          setSearchFilters({ ...searchFilters, genres: [genre.id] });
-          // Scroll to results logic handled by search effect
-      }
+      // Apply genre filter instead of searching by name
+      setSearchFilters({ ...searchFilters, genres: [genreId] });
+      setIsFilterOpen(true); // Open drawer to show the applied filter context
   }
 
   // Debounce Search
@@ -588,8 +459,7 @@ const DiscoverScreen = () => {
         const paramsKey = JSON.stringify({ q: searchQuery, f: searchFilters });
         if (paramsKey === lastSearchedParams.current && searchResults.length > 0 && !searchError) return;
         
-        // Explicitly search if query exists OR filters exist (more than just sfw default)
-        if (searchQuery.length >= 2 || Object.keys(searchFilters).length > 1) {
+        if (searchQuery.length >= 3 || Object.keys(searchFilters).length > 1) {
              if (!isOnline) {
                  setSearchError("Unable to connect to AI services. Please check your internet.");
                  return;
@@ -609,7 +479,7 @@ const DiscoverScreen = () => {
              }
              setIsSearching(false);
         }
-    }, 500);
+    }, 800); // Increased debounce for Jikan
     return () => clearTimeout(timer);
   }, [searchQuery, searchFilters, isOnline]);
 
@@ -626,6 +496,15 @@ const DiscoverScreen = () => {
     if (observerTarget.current) observer.observe(observerTarget.current);
     return () => observer.disconnect();
   }, [hasNextPage, isLoadingMore, isSearching, loadMoreResults, isOnline]);
+
+  const hasActiveFilters = (searchFilters.genres && searchFilters.genres.length > 0) ||
+    searchFilters.type ||
+    searchFilters.status ||
+    searchFilters.order_by ||
+    searchFilters.rating ||
+    searchFilters.min_score ||
+    searchFilters.start_year ||
+    searchFilters.sfw === false;
 
   const showResults = searchQuery.length > 0 || Object.keys(searchFilters).length > 1;
 
@@ -647,7 +526,7 @@ const DiscoverScreen = () => {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       disabled={!isOnline}
-                      placeholder="Search anime, studios..."
+                      placeholder="Search anime..."
                       className="w-full bg-surfaceVariant/10 border border-white/5 text-onSurface rounded-2xl pl-11 pr-10 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder-onSurfaceVariant/50 disabled:opacity-50"
                   />
                   {searchQuery && (
@@ -657,13 +536,63 @@ const DiscoverScreen = () => {
                   )}
               </div>
               <button 
-                  onClick={() => setIsFilterOpen(true)}
-                  disabled={!isOnline}
-                  className={`h-11 w-11 rounded-2xl flex items-center justify-center transition-all border disabled:opacity-50 ${Object.keys(searchFilters).length > 1 ? 'bg-primary text-onPrimary border-primary' : 'bg-surfaceVariant/10 text-onSurfaceVariant border-white/5 hover:bg-surfaceVariant/20'}`}
+                onClick={() => setIsFilterOpen(true)}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-all active:scale-95
+                ${Object.keys(searchFilters).length > 1 
+                    ? 'bg-primary text-onPrimary border-primary shadow-lg shadow-primary/20' 
+                    : 'bg-surfaceVariant/10 text-onSurfaceVariant border-white/5 hover:bg-surfaceVariant/20'}`}
               >
-                  <SlidersHorizontal size={18} />
+                  <SlidersHorizontal size={20} />
               </button>
           </div>
+
+          {/* Active Filters & Reset Row */}
+          <AnimatePresence>
+              {hasActiveFilters && (
+                  <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="flex items-center gap-2 mt-3 overflow-x-auto no-scrollbar pb-1"
+                  >
+                      <button 
+                          onClick={resetFilters}
+                          className="shrink-0 px-3 py-1.5 bg-error/10 text-error border border-error/20 rounded-lg text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 hover:bg-error/20 transition-colors"
+                      >
+                          <Trash2 size={12} />
+                          Clear All
+                      </button>
+                      
+                      {/* Sort Chip */}
+                      {searchFilters.order_by && (
+                           <span className="shrink-0 px-2 py-1 bg-primary/10 border border-primary/20 rounded-lg text-[10px] text-primary font-medium flex items-center gap-1">
+                              Sort: {SORT_OPTIONS.find(s => s.value === searchFilters.order_by)?.label || searchFilters.order_by}
+                           </span>
+                      )}
+                      
+                      {/* Genre Chips */}
+                      {searchFilters.genres?.map(gId => (
+                           <span key={gId} className="shrink-0 px-2 py-1 bg-surfaceVariant/20 border border-white/5 rounded-lg text-[10px] text-onSurfaceVariant font-medium whitespace-nowrap">
+                              {GeminiService.GENRE_LIST.find(g => g.id === gId)?.name}
+                           </span>
+                      ))}
+                      
+                      {/* Type Chip */}
+                      {searchFilters.type && (
+                           <span className="shrink-0 px-2 py-1 bg-surfaceVariant/20 border border-white/5 rounded-lg text-[10px] text-onSurfaceVariant font-medium uppercase">
+                              {searchFilters.type}
+                           </span>
+                      )}
+
+                      {/* Status Chip */}
+                      {searchFilters.status && (
+                           <span className="shrink-0 px-2 py-1 bg-surfaceVariant/20 border border-white/5 rounded-lg text-[10px] text-onSurfaceVariant font-medium uppercase">
+                              {searchFilters.status}
+                           </span>
+                      )}
+                  </motion.div>
+              )}
+          </AnimatePresence>
       </div>
 
       <div className="flex-1 space-y-8 pt-4">
@@ -671,26 +600,27 @@ const DiscoverScreen = () => {
           {/* Discovery Content (Only show if NOT searching) */}
           {!showResults && (
             <>
-                {/* Trending Carousel */}
-                <section>
-                    <div className="px-6 mb-3 flex justify-between items-end">
-                        <h2 className="text-sm font-bold text-onSurfaceVariant uppercase tracking-widest">Trending Now</h2>
-                    </div>
-                    <HeroCarousel animeList={trendingAnime} onSelect={(a) => navigate(`/detail/${a.id}`, { state: { anime: a } })} />
-                </section>
+                {/* Trending Carousel - REFACTORED */}
+                <TrendingSlider 
+                    animeList={trendingAnime} 
+                    onSelect={(a) => navigate(`/detail/${a.id}`, { state: { anime: a } })} 
+                />
+
+                {/* Just Aired (RSS) */}
+                <JustAiredSection episodes={recentEpisodes} />
 
                 {/* Genre Chips */}
                 <section className="px-6">
                      <h2 className="text-sm font-bold text-onSurfaceVariant uppercase tracking-widest mb-3">Browse Categories</h2>
                      <div className="flex flex-wrap gap-2">
-                         {MAIN_GENRES.map(genre => (
+                         {GeminiService.GENRE_LIST.filter(g => g.group === 'Mainstream').map(genre => (
                              <button 
-                                key={genre} 
-                                onClick={() => handleGenreClick(genre)}
+                                key={genre.id} 
+                                onClick={() => handleGenreClick(genre.id)}
                                 disabled={!isOnline}
                                 className="px-4 py-2 bg-surfaceVariant/10 border border-white/5 rounded-xl text-xs font-medium text-onSurface hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50"
                              >
-                                 {genre}
+                                 {genre.name}
                              </button>
                          ))}
                      </div>
@@ -709,9 +639,6 @@ const DiscoverScreen = () => {
                   <h2 className="text-sm font-bold text-onSurfaceVariant uppercase tracking-widest">
                       {showResults ? 'Results' : 'Recommendations'}
                   </h2>
-                  {showResults && (
-                      <button onClick={resetFilters} className="text-xs text-primary font-bold">Clear All</button>
-                  )}
               </div>
 
               {isSearching && !isLoadingMore && (
@@ -732,13 +659,23 @@ const DiscoverScreen = () => {
               )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {!isSearching && !searchError && searchResults.map(anime => (
-                      <VerticalAnimeCard 
-                          key={anime.id} 
-                          anime={anime} 
-                          onClick={() => navigate(`/detail/${anime.id}`, { state: { anime } })} 
-                      />
-                  ))}
+                  {!isSearching && !searchError && searchResults.map((item, index) => {
+                      // Type Guard to render correct card
+                      // Anime objects ALWAYS have a numeric 'id', NewsItems do not.
+                      if ('id' in item) {
+                          return (
+                              <VerticalAnimeCard 
+                                  key={`anime-${item.id}-${index}`} 
+                                  anime={item as Anime} 
+                                  onClick={() => navigate(`/detail/${(item as Anime).id}`, { state: { anime: item } })} 
+                              />
+                          );
+                      } else {
+                          const news = item as NewsItem;
+                          // Use news link as key to avoid re-render issues
+                          return <NewsCard key={news.link || `news-${index}`} news={news} />;
+                      }
+                  })}
               </div>
 
               {isLoadingMore && (
@@ -837,8 +774,8 @@ const DetailScreen = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const params = useParams();
-    const { addToMyList, myList, updateAnimeStatus, removeFromMyList, isOnline } = useAppContext();
-    const scrollRef = useRef(null);
+    const { addToMyList, myList, updateAnimeStatus, removeFromMyList, updateProgress, isOnline } = useAppContext();
+    const scrollRef = useRef<HTMLDivElement>(null);
     const { scrollY } = useScroll({ container: scrollRef });
     
     const headerOpacity = useTransform(scrollY, [0, 200], [1, 0]);
@@ -856,6 +793,7 @@ const DetailScreen = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showFullSynopsis, setShowFullSynopsis] = useState(false);
+    const [showAllEpisodes, setShowAllEpisodes] = useState(false);
 
     // Watch Options State
     const [isWatchDropdownOpen, setIsWatchDropdownOpen] = useState(false);
@@ -863,9 +801,16 @@ const DetailScreen = () => {
     const [isCheckingSources, setIsCheckingSources] = useState(false);
     const watchDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Dummy resume state for UI demo
-    const resumeEp = Math.floor(Math.random() * 12) + 1;
-    const resumeTime = "12:42";
+    // Resume state
+    const resumeEp = animeFromList?.userProgress ? animeFromList.userProgress + 1 : 1;
+
+    // Reset scroll on navigate
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTo(0, 0);
+        // Reset view states
+        setShowFullSynopsis(false);
+        setShowAllEpisodes(false);
+    }, [animeId]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -898,61 +843,77 @@ const DetailScreen = () => {
     };
 
     useEffect(() => {
+        let isMounted = true;
+
         const fetchDetails = async () => {
-            if (!animeId || isNaN(animeId)) {
-                if (!fullAnime) setError("Invalid Anime ID");
-                setLoading(false);
-                return;
-            }
-
-            // If we have local data (e.g. from MyList), don't block on loading if offline
-            if (!isOnline && fullAnime) {
-                setLoading(false);
-                return;
-            }
-
+            // Reset Logic
             setLoading(true);
             setError(null);
-            
+            setEpisodes([]); 
+            setCharacters([]);
+            setRecommendations([]);
+            setRelations([]);
+
+            if (!animeId || isNaN(animeId)) {
+                if(isMounted) setLoading(false);
+                return;
+            }
+
+            // Phase 1: Critical Data
+            let details: Anime | null = null;
             try {
-                const details = await GeminiService.getAnimeFullDetails(animeId);
-                if (details) {
-                    setFullAnime(prev => ({ ...prev, ...details }));
-                    checkLegalAvailability(details.title); // Trigger check
-                } else if (!fullAnime) {
-                    // If offline and no local data, show error
-                    if (!isOnline) setError("No internet connection.");
-                    else setError("Failed to load anime details.");
-                } else {
-                    // We have stale data, try to check sources if possible
-                     if (isOnline) checkLegalAvailability(fullAnime.title);
-                }
-
-                // Continue fetching even if details failed slightly, but stop if major error
-                if ((details || fullAnime) && isOnline) {
-                    const eps = await GeminiService.getAnimeEpisodes(animeId);
-                    setEpisodes(eps);
-
-                    await new Promise(resolve => setTimeout(resolve, 300));
-
-                    const [chars, recs, rels] = await Promise.all([
-                        GeminiService.getAnimeCharacters(animeId),
-                        GeminiService.getAnimeRecommendationsById(animeId),
-                        GeminiService.getAnimeRelations(animeId)
-                    ]);
-                    
-                    setCharacters(chars);
-                    // Randomize recommendations on load
-                    setRecommendations(shuffleArray(recs));
-                    setRelations(rels);
-                }
-            } catch (e) {
-                if (!fullAnime) setError("Network error occurred.");
+                 if (isOnline) {
+                     details = await GeminiService.getAnimeFullDetails(animeId);
+                     if (details && isMounted) {
+                         setFullAnime(prev => ({ ...(prev || {}), ...details }));
+                         checkLegalAvailability(details.title);
+                     } else if (!fullAnime && isMounted) {
+                         setError("Failed to load details.");
+                     }
+                 }
+            } catch(e) {
+                 if(isMounted && !fullAnime) setError("Network error.");
             } finally {
-                setLoading(false);
+                if(isMounted) setLoading(false);
+            }
+
+            // Phase 2: Secondary Data (Sequential to prevent Rate Limit 429)
+            // We only fetch if online and we have the base anime data
+            if (isOnline && isMounted && (details || fullAnime)) {
+                try {
+                    // Episodes
+                    if (isMounted) {
+                        const eps = await GeminiService.getAnimeEpisodes(animeId);
+                        if (isMounted && eps.length) setEpisodes(eps);
+                    }
+                    
+                    // Characters
+                    if (isMounted) {
+                        const chars = await GeminiService.getAnimeCharacters(animeId);
+                        if (isMounted && chars.length) setCharacters(chars);
+                    }
+                    
+                    // Recs
+                    if (isMounted) {
+                        const recs = await GeminiService.getAnimeRecommendationsById(animeId);
+                        if (isMounted && recs.length) setRecommendations(shuffleArray(recs));
+                    }
+                    
+                    // Relations
+                    if (isMounted) {
+                        const rels = await GeminiService.getAnimeRelations(animeId);
+                        if (isMounted && rels.length) setRelations(rels);
+                    }
+                } catch (e) {
+                    // Secondary data failure is non-critical, ignore
+                    console.warn("Secondary data fetch incomplete", e);
+                }
             }
         };
+        
         fetchDetails();
+        
+        return () => { isMounted = false; };
     }, [animeId, isOnline]);
 
     if (loading && !fullAnime) return <div className="min-h-screen flex items-center justify-center text-onSurfaceVariant"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -965,7 +926,7 @@ const DetailScreen = () => {
         </div>
     );
 
-    if (!fullAnime) return null; // Should not happen
+    if (!fullAnime) return null;
 
     const isAdded = !!animeFromList;
     const currentAnime = { ...fullAnime, ...animeFromList };
@@ -979,8 +940,15 @@ const DetailScreen = () => {
     const handleDelete = () => {
         if (window.confirm("Remove from list?")) {
             removeFromMyList(currentAnime.id);
-            // navigate(-1); // Removed to stay on page and toggle UI
         }
+    };
+    
+    const toggleEpisodeWatched = (epNum: number) => {
+        if (!isAdded) {
+            addToMyList(currentAnime, AnimeStatus.Watching);
+        }
+        // Immediately update UI optimistic or through context
+        updateProgress(currentAnime.id, epNum);
     };
 
     return (
@@ -1150,7 +1118,7 @@ const DetailScreen = () => {
                     <div className="mb-8 bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:border-primary/40 transition-colors" onClick={() => handleWatch()}>
                         <div>
                             <span className="text-xs text-primary font-bold uppercase tracking-wider block mb-1">Continue Watching</span>
-                            <span className="text-sm font-medium text-white">Episode {resumeEp} • Resume from {resumeTime}</span>
+                            <span className="text-sm font-medium text-white">Episode {resumeEp}</span>
                         </div>
                         <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
                             <Play size={16} fill="currentColor" />
@@ -1219,26 +1187,61 @@ const DetailScreen = () => {
                 <div className="mb-10">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-base font-bold text-white">Episodes</h3>
-                        <span className="text-xs text-onSurfaceVariant">{episodes.length} eps</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-onSurfaceVariant">{episodes.length > 0 ? `${episodes.length} eps` : ''}</span>
+                            <button 
+                                onClick={() => setShowAllEpisodes(!showAllEpisodes)} 
+                                className="text-xs font-bold text-primary hover:text-primary/80"
+                            >
+                                {showAllEpisodes ? 'Show Less' : 'Show All'}
+                            </button>
+                        </div>
                     </div>
                     <div className="space-y-3">
-                        {episodes.slice(0, showFullSynopsis ? 50 : 4).map(ep => (
-                            <div key={ep.mal_id} className="flex items-center gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group" onClick={() => handleWatch()}>
-                                <div className="relative w-28 aspect-video bg-surfaceVariant/20 rounded-lg overflow-hidden shrink-0">
-                                     {/* Mock thumbnail as API doesn't always provide ep thumb */}
-                                     <img src={currentAnime.imageUrl} className="w-full h-full object-cover opacity-50" alt="ep" />
-                                     <div className="absolute inset-0 flex items-center justify-center">
-                                         <div className="w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white group-hover:bg-primary group-hover:scale-110 transition-all">
-                                             <Play size={12} fill="currentColor" />
-                                         </div>
-                                     </div>
+                        {episodes.slice(0, showAllEpisodes ? episodes.length : 5).map(ep => {
+                            const epNum = typeof ep.episode === 'number' ? ep.episode : parseInt(ep.episode as string);
+                            const isWatched = (currentAnime.userProgress || 0) >= epNum;
+                            
+                            return (
+                                <div key={ep.mal_id} className="flex items-center gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors group">
+                                    <div 
+                                        className="relative w-28 aspect-video bg-surfaceVariant/20 rounded-lg overflow-hidden shrink-0 cursor-pointer"
+                                        onClick={() => handleWatch()}
+                                    >
+                                        {/* Mock thumbnail as API doesn't always provide ep thumb */}
+                                        <img src={currentAnime.imageUrl} className="w-full h-full object-cover opacity-50" alt="ep" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white group-hover:bg-primary group-hover:scale-110 transition-all">
+                                                <Play size={12} fill="currentColor" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleWatch()}>
+                                        <div className="text-xs font-bold text-white mb-0.5 line-clamp-1">{ep.title}</div>
+                                        <div className="text-[10px] text-onSurfaceVariant">Episode {ep.episode} • 24m</div>
+                                    </div>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); toggleEpisodeWatched(epNum); }}
+                                        className={`p-2 rounded-full transition-all ${isWatched ? 'text-primary bg-primary/10' : 'text-onSurfaceVariant/20 hover:text-onSurfaceVariant'}`}
+                                    >
+                                        <CheckCircle2 size={20} />
+                                    </button>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-white mb-0.5 line-clamp-1">{ep.title}</div>
-                                    <div className="text-[10px] text-onSurfaceVariant">Episode {ep.episode} • 24m</div>
-                                </div>
+                            );
+                        })}
+                        {!showAllEpisodes && episodes.length > 5 && (
+                            <button 
+                                onClick={() => setShowAllEpisodes(true)}
+                                className="w-full py-3 text-xs font-bold text-onSurfaceVariant bg-surfaceVariant/10 rounded-xl hover:bg-surfaceVariant/20 transition-colors"
+                            >
+                                View {episodes.length - 5} more episodes
+                            </button>
+                        )}
+                        {episodes.length === 0 && (
+                            <div className="text-center text-xs text-onSurfaceVariant/50 py-4">
+                                No episode data available.
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
 
@@ -1377,7 +1380,7 @@ const LoginScreen = () => {
         </button>
 
         <p className="mt-8 text-[10px] text-onSurfaceVariant/40">
-            Powered by Jikan API (Unofficial MyAnimeList)
+            Powered by Jikan API (Unofficial MAL)
         </p>
     </div>
   );
@@ -1399,15 +1402,17 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const [searchQuery, setSearchQueryState] = useState('');
   const [searchFilters, setSearchFilters] = useState<GeminiService.SearchFilters>({ sfw: true });
-  const [searchResults, setSearchResultsState] = useState<Anime[]>([]);
+  const [searchResults, setSearchResultsState] = useState<(Anime | NewsItem)[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [trendingAnime, setTrendingAnime] = useState<Anime[]>([]);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   
   const lastSearchedParams = useRef<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const isLoadingRef = useRef(false); // Lock to prevent race conditions
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -1429,20 +1434,44 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       };
   }, []);
 
-  // Initial Data Load
+  // Initial Data Load (FRESH FEED + NEWS)
   useEffect(() => {
       if (isOnline) {
-          GeminiService.getTrendingAnime().then(setTrendingAnime);
-          // Also load default recs for discover page bottom
-          GeminiService.getAnimeRecommendations().then(data => {
-              setSearchResultsState(data);
+          // Use Promise.allSettled for Network Resilience. 
+          // If News fails, Anime still loads. If Anime fails, we try fallback.
+          Promise.allSettled([
+              AniListService.getRecommendedAnime(),
+              NewsService.fetchNews()
+          ]).then(([animeResult, newsResult]) => {
+              
+              let newsData: NewsItem[] = [];
+              if (newsResult.status === 'fulfilled') {
+                  newsData = newsResult.value;
+                  setNewsItems(newsData);
+              } else {
+                  console.error("News fetch failed", newsResult.reason);
+              }
+              
+              if (animeResult.status === 'fulfilled' && animeResult.value.length > 0) {
+                  const mixed = interleaveData(animeResult.value, newsData);
+                  setSearchResultsState(mixed);
+              } else {
+                   // Fallback to GeminiService if AniList fails
+                   GeminiService.getTopAnime(1).then(fallbackAnime => {
+                       const mixed = interleaveData(fallbackAnime, newsData);
+                       setSearchResultsState(mixed);
+                   });
+              }
           });
+
+          // Top 10 for carousel (Fixed top)
+          GeminiService.getTrendingAnime().then(setTrendingAnime);
       }
   }, [isOnline]);
 
   const setSearchQuery = (q: string) => {
       setSearchQueryState(q);
-      if (q.length <= 2 && Object.keys(searchFilters).length <= 1) {
+      if (q.length <= 2) {
           setHasNextPage(false);
           setSearchError(null);
       }
@@ -1451,34 +1480,85 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const resetFilters = () => {
       setSearchFilters({ sfw: true });
       setSearchQuery('');
+      setSearchError(null);
+      setHasNextPage(false);
       if (isOnline) {
-        GeminiService.getAnimeRecommendations().then(setSearchResultsState);
+        setIsSearching(true);
+        // Reset using AniList for fresh recommendations
+        Promise.allSettled([
+            AniListService.getRecommendedAnime(),
+            NewsService.fetchNews()
+        ]).then(([animeResult, newsResult]) => {
+             let newsData: NewsItem[] = [];
+             if (newsResult.status === 'fulfilled') newsData = newsResult.value;
+             else if (newsItems.length) newsData = newsItems; // Use cached news if fetch fails
+             
+             setNewsItems(newsData);
+             
+             if (animeResult.status === 'fulfilled') {
+                 const mixed = interleaveData(animeResult.value, newsData);
+                 setSearchResultsState(mixed);
+             }
+             setIsSearching(false);
+        });
       }
   };
 
   const applyPreset = (preset: FilterPreset) => {
-      let newFilters: GeminiService.SearchFilters = { sfw: true };
-      if (preset === 'Top Rated') newFilters.order_by = 'score';
-      if (preset === 'Trending') newFilters.order_by = 'popularity';
-      if (preset === 'New Releases') { newFilters.status = 'airing'; newFilters.order_by = 'popularity'; }
-      if (preset === 'Movies') newFilters.type = 'movie';
-      if (preset === 'Classics') { newFilters.end_year = 2005; newFilters.order_by = 'popularity'; }
+      if (!isOnline) return;
       
-      setSearchFilters(newFilters);
+      setIsSearching(true);
+      let filters: GeminiService.SearchFilters = { sfw: true };
+      
+      switch (preset) {
+          case 'Top Rated':
+              filters = { ...filters, order_by: 'score', sort: 'desc' };
+              break;
+          case 'Trending':
+              filters = { ...filters, order_by: 'popularity', sort: 'asc' };
+              break;
+          case 'New Releases':
+              filters = { ...filters, status: 'airing', order_by: 'score', sort: 'desc' };
+              break;
+          case 'Movies':
+              filters = { ...filters, type: 'movie', order_by: 'score', sort: 'desc' };
+              break;
+          case 'Classics':
+              filters = { ...filters, end_year: 2010, order_by: 'score', sort: 'desc' };
+              break;
+      }
+
+      setSearchFilters(filters);
+      GeminiService.searchAnime('', 1, filters).then(res => {
+          handleNewSearch(res.data, res.hasNextPage);
+          setIsSearching(false);
+      });
   }
 
   const loadMoreResults = async () => {
-      if (!hasNextPage || isLoadingMore || !isOnline) return;
+      if (!hasNextPage || isLoadingRef.current || !isOnline) return;
+      
       setIsLoadingMore(true);
+      isLoadingRef.current = true; // Lock
+      
       const nextPage = currentPage + 1;
       try {
         const result = await GeminiService.searchAnime(searchQuery, nextPage, searchFilters);
         if (!result.error) {
-            setSearchResultsState(prev => [...prev, ...result.data]);
+            setSearchResultsState(prev => {
+                // Duplicate Filtering
+                const newItems = deduplicateItems(prev, result.data);
+                return [...prev, ...newItems];
+            });
             setHasNextPage(result.hasNextPage);
             setCurrentPage(nextPage);
         }
-      } catch (e) {} finally { setIsLoadingMore(false); }
+      } catch (e) {
+          console.error("Load more failed", e);
+      } finally { 
+          setIsLoadingMore(false); 
+          isLoadingRef.current = false; // Unlock
+      }
   };
   
   const handleNewSearch = (results: Anime[], hasNext: boolean) => {
@@ -1507,10 +1587,21 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           return a;
       }));
   };
+  
+  const updateProgress = (animeId: number, progress: number) => {
+      setMyList(prev => prev.map(a => {
+          if (a.id === animeId) {
+              // Auto-update status logic
+              const newStatus = (progress >= (a.episodes || 9999)) ? AnimeStatus.Completed : (a.userStatus === AnimeStatus.PlanToWatch ? AnimeStatus.Watching : a.userStatus);
+              return { ...a, userProgress: progress, userStatus: newStatus, lastUpdated: Date.now() };
+          }
+          return a;
+      }));
+  };
 
   return (
     <AppContext.Provider value={{ 
-        user, myList, login, logout, addToMyList, removeFromMyList, updateAnimeStatus,
+        user, myList, login, logout, addToMyList, removeFromMyList, updateAnimeStatus, updateProgress,
         searchQuery, setSearchQuery, 
         searchResults, setSearchResults: setSearchResultsState, 
         isSearching, setIsSearching,
@@ -1538,12 +1629,14 @@ const App = () => {
         <div className="max-w-md mx-auto bg-background min-h-screen shadow-2xl overflow-hidden relative font-sans text-onSurface selection:bg-primary/30">
             <Routes>
               <Route path="/login" element={<LoginScreen />} />
-              <Route path="/" element={<ProtectedRoute><DiscoverScreen /></ProtectedRoute>} />
-              <Route path="/list" element={<ProtectedRoute><MyListScreen /></ProtectedRoute>} />
-              <Route path="/detail/:id" element={<ProtectedRoute><DetailScreen /></ProtectedRoute>} />
+              <Route element={<Layout />}>
+                <Route path="/" element={<ProtectedRoute><DiscoverScreen /></ProtectedRoute>} />
+                <Route path="/trending" element={<ProtectedRoute><TrendingScreen /></ProtectedRoute>} />
+                <Route path="/list" element={<ProtectedRoute><MyListScreen /></ProtectedRoute>} />
+                <Route path="/detail/:id" element={<ProtectedRoute><DetailScreen /></ProtectedRoute>} />
+              </Route>
             </Routes>
             <NetworkStatus />
-            <BottomNav />
         </div>
       </AppProvider>
     </HashRouter>
