@@ -42,11 +42,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialView = 's
           response = await supabase.auth.signInWithPassword({ email, password });
           break;
         case 'signUp':
-          response = await supabase.auth.signUp({ email, password });
+          response = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
+          });
           if (!response.error) setMessage('Account created! Please check your email to verify.');
           break;
         case 'magicLink':
-          response = await supabase.auth.signInWithOtp({ email });
+          response = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: window.location.origin,
+            },
+          });
           if (!response.error) setMessage('Check your email for the magic link!');
           break;
         case 'forgotPassword':

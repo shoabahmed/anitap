@@ -10,19 +10,26 @@ if (SUPABASE_URL.includes('your-project-id') || SUPABASE_ANON_KEY.includes('your
 
 /*
  * =================================================================================
- * IMPORTANT: Supabase Magic Link Configuration
+ * IMPORTANT: Supabase Authentication Configuration
  * =================================================================================
- * For Magic Link (email OTP) to work, you MUST configure your Supabase project:
+ * For authentication (Magic Link, Password Reset, etc.) to work correctly on both
+ * local development and your deployed site, you MUST configure your Supabase project:
  * 
  * 1. Go to your Supabase Project Dashboard.
  * 2. Navigate to: Authentication -> URL Configuration.
- * 3. Set 'Site URL' to: http://localhost:3000
- * 4. Under 'Redirect URLs', add a new URL pattern: http://localhost:3000/**
+ * 
+ * 3. Set 'Site URL' to your PRODUCTION URL:
+ *    -> https://anitap-seven.vercel.app
+ * 
+ * 4. Under 'Redirect URLs', you need to add BOTH your production and local URLs.
+ *    Add these two patterns:
+ *    -> https://anitap-seven.vercel.app/**
+ *    -> http://localhost:3000/**
  * 
  * WHY IS THIS NEEDED?
- * Supabase needs to know which URLs are safe to redirect users to after they click
- * the magic link. If your app's URL is not on this list, Supabase will block the
- * authentication attempt and show an "invalid or expired link" error.
+ * Supabase needs to know which URLs are safe to redirect users to after they sign in
+ * or reset their password. If your app's URL is not on this approved list, Supabase
+ * will block the authentication attempt, causing errors like "invalid link".
  * =================================================================================
  */
 
