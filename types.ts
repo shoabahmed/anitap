@@ -1,4 +1,4 @@
-
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export enum AnimeStatus {
   Watching = 'Watching',
@@ -26,6 +26,7 @@ export interface Anime {
   userScore?: number; // User's rating
   userProgress?: number; // Episode progress
   lastUpdated?: number;
+  list_id?: number; // Primary key from our database table
   
   // Extended Details
   genres?: string[];
@@ -85,14 +86,12 @@ export interface Relation {
   }[];
 }
 
-export interface User {
-  name: string;
-  avatarUrl: string;
-  isLoggedIn: boolean;
-}
+// Re-typing User to use Supabase's user object.
+export type User = SupabaseUser;
+
+export type AuthView = 'signIn' | 'signUp' | 'forgotPassword' | 'magicLink';
 
 export type RootStackParamList = {
-  Login: undefined;
   Discover: undefined;
   MyList: undefined;
   Detail: { animeId: number };

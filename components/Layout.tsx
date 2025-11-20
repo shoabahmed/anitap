@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
-import { Compass, List as ListIcon, Flame, User, LogOut, Tv } from 'lucide-react';
+import { Compass, List as ListIcon, Flame, User, LogOut, Tv, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppContext } from '../App';
+import { supabase } from '../services/supabaseClient';
 
 // --- Components ---
 
@@ -25,13 +25,21 @@ const SidebarItem = ({ icon: Icon, label, path, isActive, onClick }: any) => (
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAppContext();
+  const { user, openAuthModal } = useAppContext();
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const tabs = [
     { name: 'Discover', icon: Compass, path: '/' },
     { name: 'Trending', icon: Flame, path: '/trending' },
     { name: 'My List', icon: ListIcon, path: '/list' },
   ];
+
+  const handleLogout = async () => {
+      setIsLoggingOut(true);
+      await supabase.auth.signOut();
+      navigate('/');
+      setIsLoggingOut(false);
+  };
 
   return (
     <aside className="hidden md:flex w-64 flex-col border-r border-white/5 bg-[#1E1C22] z-50 h-full shrink-0">
@@ -65,21 +73,34 @@ const Sidebar = () => {
 
       {/* User Footer */}
       <div className="p-4 border-t border-white/5">
-        <div className="bg-surfaceVariant/10 rounded-2xl p-3 flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
-                {user.name.charAt(0)}
+        {user ? (
+          <>
+            <div className="bg-surfaceVariant/10 rounded-2xl p-3 flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
+                    {user.email?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-white truncate">{user.email}</div>
+                    <div className="text-xs text-onSurfaceVariant">Free Plan</div>
+                </div>
             </div>
-            <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-white truncate">{user.name}</div>
-                <div className="text-xs text-onSurfaceVariant">Free Plan</div>
-            </div>
-        </div>
-        <button 
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 p-2 rounded-xl text-error hover:bg-error/10 transition-colors text-xs font-bold"
-        >
-            <LogOut size={14} /> Sign Out
-        </button>
+            <button 
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="w-full flex items-center justify-center gap-2 p-2 rounded-xl text-error hover:bg-error/10 transition-colors text-xs font-bold disabled:opacity-50"
+            >
+                {isLoggingOut ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
+            </button>
+          </>
+        ) : (
+            <button 
+                onClick={() => openAuthModal('signIn')}
+                className="w-full bg-primary text-onPrimary font-bold py-3 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-transform"
+            >
+                Sign In
+            </button>
+        )}
       </div>
     </aside>
   );

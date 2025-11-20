@@ -1,15 +1,18 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
-import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2 } from 'lucide-react';
+import { Search as SearchIcon, User as UserIcon, LogOut, ChevronDown, ChevronLeft, Play, Plus, Tv, AlertCircle, SlidersHorizontal, Sparkles, Flame, X, Check, ArrowUpDown, Filter, Ghost, Calendar, Star, Eye, EyeOff, Share2, Clock, Users, Trophy, Film, Info, Heart, MonitorPlay, Youtube, Trash2, Link as LinkIcon, Compass, LayoutGrid, List as ListIcon, ExternalLink, Loader2, Sparkle, WifiOff, Rss, CheckCircle2, Mail } from 'lucide-react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
+import { Session, User } from '@supabase/supabase-js';
+import { supabase } from './services/supabaseClient';
 
-import { Anime, AnimeStatus, User, Character, Episode, Relation, FilterPreset, RecentEpisode, NewsItem } from './types';
+import { Anime, AnimeStatus, Character, Episode, Relation, FilterPreset, RecentEpisode, NewsItem, AuthView } from './types';
 import * as GeminiService from './services/geminiService'; 
 import * as LiveChartService from './services/liveChartService';
 import * as AniListService from './services/anilist';
 import * as NewsService from './services/news';
 import NewsCard from './components/NewsCard';
 import Layout from './components/Layout';
+import AuthModal from './components/AuthModal';
 import TrendingScreen from './pages/Trending';
 import StudioScreen from './pages/Studio';
 import GoogleAd from './components/GoogleAd';
@@ -108,14 +111,14 @@ const ScrollToTop = () => {
 // --- Context ---
 
 interface AppContextType {
-  user: User;
+  session: Session | null;
+  user: User | null;
   myList: Anime[];
-  login: () => void;
-  logout: () => void;
-  addToMyList: (anime: Anime, status: AnimeStatus) => void;
-  removeFromMyList: (animeId: number) => void;
-  updateAnimeStatus: (animeId: number, status: AnimeStatus, score?: number) => void;
-  updateProgress: (animeId: number, progress: number) => void;
+  loadingAuth: boolean;
+  addToMyList: (anime: Anime, status: AnimeStatus) => Promise<void>;
+  removeFromMyList: (listId: number) => Promise<void>;
+  updateAnimeStatus: (listId: number, status: AnimeStatus, score?: number) => Promise<void>;
+  updateProgress: (listId: number, progress: number) => Promise<void>;
   
   searchQuery: string;
   setSearchQuery: (q: string) => void;
@@ -139,6 +142,10 @@ interface AppContextType {
   trendingAnime: Anime[];
   
   isOnline: boolean;
+
+  isAuthModalOpen: boolean;
+  openAuthModal: (view?: AuthView) => void;
+  closeAuthModal: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -400,7 +407,7 @@ const DiscoverScreen = () => {
       loadMoreResults, hasNextPage, isLoadingMore,
       handleNewSearch, searchError, setSearchError,
       searchFilters, setSearchFilters, resetFilters, lastSearchedParams,
-      trendingAnime, isOnline
+      trendingAnime, isOnline, openAuthModal
   } = useAppContext();
   
   const navigate = useNavigate();
@@ -488,9 +495,9 @@ const DiscoverScreen = () => {
       <div className="sticky top-0 z-40 bg-[#1E1C22]/95 backdrop-blur-xl px-6 pt-4 pb-2 border-b border-white/5 shadow-md">
           <div className="flex items-center justify-between mb-4">
               <h1 className="text-2xl font-bold text-white">Discover</h1>
-              <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center border border-primary/30 md:hidden">
+              <button onClick={() => navigate('/list')} className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center border border-primary/30 md:hidden">
                   <UserIcon size={16} className="text-primary" />
-              </div>
+              </button>
           </div>
           <div className="flex gap-3 mb-2">
               <div className="relative flex-1 group">
@@ -671,9 +678,35 @@ const DiscoverScreen = () => {
 };
 
 const MyListScreen = () => {
-  const { myList, user } = useAppContext();
+  const { myList, user, loadingAuth, openAuthModal } = useAppContext();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('All');
+
+  if (loadingAuth) {
+    return (
+        <div className="min-h-full flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  if (!user) {
+    return (
+        <div className="min-h-full flex flex-col items-center justify-center text-center p-6">
+            <UserIcon size={48} className="text-primary mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">Access Your Watchlist</h2>
+            <p className="text-onSurfaceVariant max-w-sm mb-6">
+                Sign in to sync your personal anime list across all your devices and manage your progress.
+            </p>
+            <button 
+                onClick={() => openAuthModal('signIn')}
+                className="px-8 py-3 bg-primary text-onPrimary rounded-full font-bold shadow-lg shadow-primary/25 hover:scale-105 active:scale-95 transition-transform"
+            >
+                Sign In
+            </button>
+        </div>
+    )
+  }
 
   const filteredList = myList
     .filter(a => filter === 'All' || a.userStatus === filter)
@@ -689,7 +722,7 @@ const MyListScreen = () => {
       {/* Header */}
       <div className="pt-12 px-6 mb-8">
         <h1 className="text-2xl font-bold text-white mb-1">{greeting},</h1>
-        <h2 className="text-2xl font-bold text-primary">{user.name}</h2>
+        <h2 className="text-2xl font-bold text-primary truncate max-w-full">{user?.email}</h2>
       </div>
 
       {/* Stats Bubble */}
@@ -751,7 +784,7 @@ const DetailScreen = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const params = useParams();
-    const { addToMyList, myList, updateAnimeStatus, removeFromMyList, updateProgress, isOnline } = useAppContext();
+    const { user, addToMyList, myList, updateAnimeStatus, removeFromMyList, updateProgress, isOnline, openAuthModal } = useAppContext();
     const scrollRef = useRef<HTMLDivElement>(null);
     const { scrollY } = useScroll({ container: scrollRef });
     
@@ -917,17 +950,25 @@ const DetailScreen = () => {
     };
 
     const handleDelete = () => {
-        if (window.confirm("Remove from list?")) {
-            removeFromMyList(currentAnime.id);
+        if (!user) {
+            openAuthModal('signIn');
+            return;
+        }
+        if (window.confirm("Remove from list?") && currentAnime.list_id) {
+            removeFromMyList(currentAnime.list_id);
         }
     };
     
     const toggleEpisodeWatched = (epNum: number) => {
+        if (!user) {
+            openAuthModal('signIn');
+            return;
+        }
         if (!isAdded) {
             addToMyList(currentAnime, AnimeStatus.Watching);
+        } else if (currentAnime.list_id) {
+            updateProgress(currentAnime.list_id, epNum);
         }
-        // Immediately update UI optimistic or through context
-        updateProgress(currentAnime.id, epNum);
     };
 
     return (
@@ -1071,7 +1112,10 @@ const DetailScreen = () => {
                         
                         {!isAdded ? (
                             <button 
-                                onClick={() => addToMyList(currentAnime, AnimeStatus.PlanToWatch)}
+                                onClick={() => {
+                                    if (!user) openAuthModal('signIn');
+                                    else addToMyList(currentAnime, AnimeStatus.PlanToWatch);
+                                }}
                                 className="px-6 bg-surfaceVariant hover:bg-surfaceVariant/80 text-white font-bold rounded-2xl transition-all active:scale-95 flex items-center gap-2 border border-white/5"
                             >
                                 <Plus size={24} />
@@ -1082,7 +1126,7 @@ const DetailScreen = () => {
                                     <select 
                                         className="h-full pl-4 pr-8 bg-surfaceVariant text-white font-bold rounded-2xl appearance-none outline-none border border-white/5 text-sm"
                                         value={currentAnime.userStatus}
-                                        onChange={(e) => updateAnimeStatus(currentAnime.id, e.target.value as AnimeStatus)}
+                                        onChange={(e) => currentAnime.list_id && updateAnimeStatus(currentAnime.list_id, e.target.value as AnimeStatus)}
                                     >
                                         {Object.values(AnimeStatus).map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
@@ -1336,71 +1380,12 @@ const DetailScreen = () => {
     );
 }
 
-// --- Login Screen ---
-
-const LoginScreen = () => {
-  const { login } = useAppContext();
-  const navigate = useNavigate();
-
-  const handleLogin = () => {
-    login();
-    navigate('/');
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-secondary/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2 pointer-events-none" />
-
-        <div className="mb-8 relative">
-             <div className="w-24 h-24 bg-gradient-to-br from-primary to-secondary rounded-3xl flex items-center justify-center shadow-lg shadow-primary/20 rotate-3">
-                 <Sparkles size={48} className="text-white" />
-             </div>
-             <div className="absolute -bottom-2 -right-2 bg-[#252329] p-2 rounded-xl border border-white/10 shadow-lg -rotate-6">
-                 <Flame size={24} className="text-orange-500" fill="currentColor" />
-             </div>
-        </div>
-
-        <h1 className="text-3xl font-bold text-white mb-2">Anime Discovery</h1>
-        <p className="text-onSurfaceVariant mb-10 max-w-[260px]">
-            Track your favorite anime, discover new gems, and keep your watchlist organized.
-        </p>
-
-        <button 
-            onClick={handleLogin}
-            className="w-full max-w-xs bg-white text-black font-bold py-4 rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
-        >
-            <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
-                <UserIcon size={14} className="text-white" />
-            </div>
-            <span>Continue as Guest</span>
-        </button>
-
-        <p className="mt-8 text-[10px] text-onSurfaceVariant/40">
-            Powered by Jikan API (Unofficial MAL)
-        </p>
-    </div>
-  );
-};
-
 // --- Main App Shell ---
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User>({
-    name: 'Otaku User',
-    avatarUrl: '',
-    isLoggedIn: false,
-  });
-  
-  const [myList, setMyList] = useState<Anime[]>(() => {
-    try {
-      const saved = localStorage.getItem('myAnimeList');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error("Failed to parse myAnimeList", e);
-      return [];
-    }
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [myList, setMyList] = useState<Anime[]>([]);
 
   const [searchQuery, setSearchQueryState] = useState('');
   const [searchFilters, setSearchFilters] = useState<GeminiService.SearchFilters>({ sfw: true });
@@ -1418,34 +1403,81 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  useEffect(() => {
-    localStorage.setItem('myAnimeList', JSON.stringify(myList));
-  }, [myList]);
+  // Auth Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const initialAuthView = useRef<AuthView>('signIn');
+  
+  const openAuthModal = (view: AuthView = 'signIn') => {
+      initialAuthView.current = view;
+      setIsAuthModalOpen(true);
+  };
+  const closeAuthModal = () => setIsAuthModalOpen(false);
 
-  // Online/Offline Listener
   useEffect(() => {
-      const handleOnline = () => setIsOnline(true);
-      const handleOffline = () => setIsOnline(false);
-      
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
-      
-      return () => {
-          window.removeEventListener('online', handleOnline);
-          window.removeEventListener('offline', handleOffline);
-      };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
+
+  useEffect(() => {
+    setLoadingAuth(true);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (_event === 'SIGNED_IN') {
+        closeAuthModal();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchMyList = async (userId: string) => {
+    const { data, error } = await supabase
+        .from('anime_list')
+        .select('*')
+        .eq('user_id', userId)
+        .order('last_updated', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching list:', error);
+    } else {
+        const fetchedList: Anime[] = data.map((item: any) => ({
+            ...(item.anime_data as Anime),
+            userStatus: item.user_status,
+            userProgress: item.user_progress,
+            userScore: item.user_score,
+            lastUpdated: new Date(item.last_updated).getTime(),
+            list_id: item.id
+        }));
+        setMyList(fetchedList);
+    }
+  };
+
+  useEffect(() => {
+      if (session?.user) {
+          fetchMyList(session.user.id);
+      } else {
+          setMyList([]);
+      }
+  }, [session]);
 
   // Initial Data Load (FRESH FEED + NEWS)
   useEffect(() => {
       if (isOnline) {
-          // Use Promise.allSettled for Network Resilience. 
-          // If News fails, Anime still loads. If Anime fails, we try fallback.
           Promise.allSettled([
               AniListService.getRecommendedAnime(),
               NewsService.fetchNews()
           ]).then(([animeResult, newsResult]) => {
-              
               let newsData: NewsItem[] = [];
               if (newsResult.status === 'fulfilled') {
                   newsData = newsResult.value;
@@ -1458,15 +1490,12 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   const mixed = interleaveData(animeResult.value, newsData);
                   setSearchResultsState(mixed);
               } else {
-                   // Fallback to GeminiService if AniList fails
                    GeminiService.getTopAnime(1).then(fallbackAnime => {
                        const mixed = interleaveData(fallbackAnime, newsData);
                        setSearchResultsState(mixed);
                    });
               }
           });
-
-          // Top 10 for carousel (Fixed top)
           GeminiService.getTrendingAnime().then(setTrendingAnime);
       }
   }, [isOnline]);
@@ -1486,14 +1515,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       setHasNextPage(false);
       if (isOnline) {
         setIsSearching(true);
-        // Reset using AniList for fresh recommendations
         Promise.allSettled([
             AniListService.getRecommendedAnime(),
             NewsService.fetchNews()
         ]).then(([animeResult, newsResult]) => {
              let newsData: NewsItem[] = [];
              if (newsResult.status === 'fulfilled') newsData = newsResult.value;
-             else if (newsItems.length) newsData = newsItems; // Use cached news if fetch fails
+             else if (newsItems.length) newsData = newsItems;
              
              setNewsItems(newsData);
              
@@ -1508,26 +1536,15 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const applyPreset = (preset: FilterPreset) => {
       if (!isOnline) return;
-      
       setIsSearching(true);
       let filters: GeminiService.SearchFilters = { sfw: true };
       
       switch (preset) {
-          case 'Top Rated':
-              filters = { ...filters, order_by: 'score', sort: 'desc' };
-              break;
-          case 'Trending':
-              filters = { ...filters, order_by: 'popularity', sort: 'asc' };
-              break;
-          case 'New Releases':
-              filters = { ...filters, status: 'airing', order_by: 'score', sort: 'desc' };
-              break;
-          case 'Movies':
-              filters = { ...filters, type: 'movie', order_by: 'score', sort: 'desc' };
-              break;
-          case 'Classics':
-              filters = { ...filters, end_year: 2010, order_by: 'score', sort: 'desc' };
-              break;
+          case 'Top Rated': filters = { ...filters, order_by: 'score', sort: 'desc' }; break;
+          case 'Trending': filters = { ...filters, order_by: 'popularity', sort: 'asc' }; break;
+          case 'New Releases': filters = { ...filters, status: 'airing', order_by: 'score', sort: 'desc' }; break;
+          case 'Movies': filters = { ...filters, type: 'movie', order_by: 'score', sort: 'desc' }; break;
+          case 'Classics': filters = { ...filters, end_year: 2010, order_by: 'score', sort: 'desc' }; break;
       }
 
       setSearchFilters(filters);
@@ -1541,14 +1558,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       if (!hasNextPage || isLoadingRef.current || !isOnline) return;
       
       setIsLoadingMore(true);
-      isLoadingRef.current = true; // Lock
+      isLoadingRef.current = true;
       
       const nextPage = currentPage + 1;
       try {
         const result = await GeminiService.searchAnime(searchQuery, nextPage, searchFilters);
         if (!result.error) {
             setSearchResultsState(prev => {
-                // Duplicate Filtering
                 const newItems = deduplicateItems(prev, result.data);
                 return [...prev, ...newItems];
             });
@@ -1559,7 +1575,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           console.error("Load more failed", e);
       } finally { 
           setIsLoadingMore(false); 
-          isLoadingRef.current = false; // Unlock
+          isLoadingRef.current = false;
       }
   };
   
@@ -1569,41 +1585,84 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       setCurrentPage(1);
   };
 
-  const login = () => { setUser({ ...user, isLoggedIn: true }); };
-  const logout = () => { setUser({ ...user, isLoggedIn: false }); setMyList([]); };
+  const addToMyList = async (anime: Anime, status: AnimeStatus) => {
+    if (!session?.user || myList.some(a => a.id === anime.id)) return;
 
-  const addToMyList = (anime: Anime, status: AnimeStatus) => {
-    if (myList.some(a => a.id === anime.id)) return;
-    setMyList(prev => [...prev, { ...anime, userStatus: status, lastUpdated: Date.now(), userProgress: 0 }]);
+    const { list_id, ...animeData } = anime;
+
+    const newItem = {
+        user_id: session.user.id,
+        anime_id: anime.id,
+        anime_data: animeData,
+        user_status: status,
+        user_progress: 0,
+        last_updated: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from('anime_list').insert(newItem).select().single();
+
+    if (error) {
+      console.error('Error adding to list:', error);
+    } else {
+        const addedAnime: Anime = {
+            ...(data.anime_data as Anime),
+            userStatus: data.user_status,
+            userProgress: data.user_progress,
+            userScore: data.user_score,
+            lastUpdated: new Date(data.last_updated).getTime(),
+            list_id: data.id,
+        };
+        setMyList(prev => [addedAnime, ...prev]);
+    }
   };
 
-  const removeFromMyList = (animeId: number) => {
-    setMyList(prev => prev.filter(a => a.id !== animeId));
+  const removeFromMyList = async (listId: number) => {
+    const { error } = await supabase.from('anime_list').delete().eq('id', listId);
+    if (error) {
+        console.error('Error removing from list:', error);
+    } else {
+        setMyList(prev => prev.filter(a => a.list_id !== listId));
+    }
   };
 
-  const updateAnimeStatus = (animeId: number, status: AnimeStatus, score?: number) => {
-      setMyList(prev => prev.map(a => {
-          if (a.id === animeId) {
-              return { ...a, userStatus: status, userScore: score ?? a.userScore, lastUpdated: Date.now() };
-          }
-          return a;
-      }));
+  const updateAnimeStatus = async (listId: number, status: AnimeStatus, score?: number) => {
+      const updateObject: any = {
+          user_status: status,
+          last_updated: new Date().toISOString(),
+      };
+      if (score !== undefined) updateObject.user_score = score;
+
+      const { error } = await supabase.from('anime_list').update(updateObject).eq('id', listId);
+      
+      if (error) {
+          console.error('Error updating status:', error);
+      } else {
+          setMyList(prev => prev.map(a => a.list_id === listId ? { ...a, userStatus: status, userScore: score ?? a.userScore, lastUpdated: Date.now() } : a ));
+      }
   };
   
-  const updateProgress = (animeId: number, progress: number) => {
-      setMyList(prev => prev.map(a => {
-          if (a.id === animeId) {
-              // Auto-update status logic
-              const newStatus = (progress >= (a.episodes || 9999)) ? AnimeStatus.Completed : (a.userStatus === AnimeStatus.PlanToWatch ? AnimeStatus.Watching : a.userStatus);
-              return { ...a, userProgress: progress, userStatus: newStatus, lastUpdated: Date.now() };
-          }
-          return a;
-      }));
+  const updateProgress = async (listId: number, progress: number) => {
+      const animeInList = myList.find(a => a.list_id === listId);
+      if (!animeInList) return;
+
+      const newStatus = (progress >= (animeInList.episodes || 9999)) ? AnimeStatus.Completed : (animeInList.userStatus === AnimeStatus.PlanToWatch ? AnimeStatus.Watching : animeInList.userStatus);
+
+      const { error } = await supabase.from('anime_list').update({
+          user_progress: progress,
+          user_status: newStatus,
+          last_updated: new Date().toISOString(),
+      }).eq('id', listId);
+
+      if (error) {
+          console.error('Error updating progress:', error);
+      } else {
+          setMyList(prev => prev.map(a => a.list_id === listId ? { ...a, userProgress: progress, userStatus: newStatus, lastUpdated: Date.now() } : a ));
+      }
   };
 
   return (
     <AppContext.Provider value={{ 
-        user, myList, login, logout, addToMyList, removeFromMyList, updateAnimeStatus, updateProgress,
+        session, user: session?.user || null, myList, loadingAuth,
+        addToMyList, removeFromMyList, updateAnimeStatus, updateProgress,
         searchQuery, setSearchQuery, 
         searchResults, setSearchResults: setSearchResultsState, 
         isSearching, setIsSearching,
@@ -1611,17 +1670,17 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         handleNewSearch,
         searchError, setSearchError,
         searchFilters, setSearchFilters, resetFilters, applyPreset,
-        lastSearchedParams, trendingAnime, isOnline
+        lastSearchedParams, trendingAnime, isOnline,
+        isAuthModalOpen, openAuthModal, closeAuthModal
     }}>
       {children}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={closeAuthModal} 
+        initialView={initialAuthView.current} 
+      />
     </AppContext.Provider>
   );
-};
-
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user } = useAppContext();
-    if (!user.isLoggedIn) return <Navigate to="/login" replace />;
-    return <>{children}</>;
 };
 
 const App = () => {
@@ -1629,16 +1688,14 @@ const App = () => {
     <HashRouter>
       <ScrollToTop />
       <AppProvider>
-        {/* Removed max-w-md, now full width for desktop responsiveness */}
         <div className="w-full bg-background min-h-screen shadow-2xl relative font-sans text-onSurface selection:bg-primary/30">
             <Routes>
-              <Route path="/login" element={<LoginScreen />} />
               <Route element={<Layout />}>
-                <Route path="/" element={<ProtectedRoute><DiscoverScreen /></ProtectedRoute>} />
-                <Route path="/trending" element={<ProtectedRoute><TrendingScreen /></ProtectedRoute>} />
-                <Route path="/list" element={<ProtectedRoute><MyListScreen /></ProtectedRoute>} />
-                <Route path="/detail/:id" element={<ProtectedRoute><DetailScreen /></ProtectedRoute>} />
-                <Route path="/studio/:id" element={<ProtectedRoute><StudioScreen /></ProtectedRoute>} />
+                <Route path="/" element={<DiscoverScreen />} />
+                <Route path="/trending" element={<TrendingScreen />} />
+                <Route path="/list" element={<MyListScreen />} />
+                <Route path="/detail/:id" element={<DetailScreen />} />
+                <Route path="/studio/:id" element={<StudioScreen />} />
               </Route>
             </Routes>
             <NetworkStatus />
