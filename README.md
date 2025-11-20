@@ -84,18 +84,3 @@ score
 
 🎬 Seasonal charts
 
-🤝 Contributing
-
-Fork the repo
-
-Create a feature branch
-
-Push and create a pull request
-
-📄 License
-
-MIT License.
-
-⭐ Support
-
-If you like the project, star the repo!
