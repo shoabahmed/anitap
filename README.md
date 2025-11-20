@@ -1,20 +1,101 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+A clean and fast anime search, tracking, and discovery app powered by AniList API.
 
-# Run and deploy your AI Studio app
+🚀 Features
 
-This contains everything you need to run your app locally.
+🔍 Anime Search by title
 
-View your app in AI Studio: https://ai.studio/apps/drive/1pLzMMj2NGvsZVZSiomChGHW4ar04bWYT
+📘 Detailed Anime Pages with synopsis, episodes, score, and more
 
-## Run Locally
+⭐ Personal Watchlist / Tracker
 
-**Prerequisites:**  Node.js
+📈 Track episodes watched
+
+🗂️ Status options (Watching / Completed / Planned)
+
+🖼️ High-quality images from AniList
+
+⚡ Fast UI, mobile-friendly
+
+🖼️ Screenshots
+
+(Add your images here)
+Example format:
+
+Home	Search	Detail
+
+	
+	
+🛠️ Tech Stack
+
+Frontend: React / HTML / CSS / Tailwind (optional)
+
+Backend: Node.js
+
+API: AniList GraphQL
+
+Database (optional): SQLite / LocalStorage
+
+📦 Installation
+1. Clone the repo
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+
+2. Install dependencies
+npm install
+
+3. Start the development server
+npm run dev
+
+🔑 Environment Variables
+
+Create a .env.local file:
+
+VITE_API_URL=http://localhost:3000/api
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+If using Gemini or AI Studio add:
+
+GEMINI_API_KEY=your_key
+
+📚 API Usage (Quick Example)
+
+Search request:
+
+POST /api/anilist/search { "query": "naruto" }
+
+
+Response includes:
+
+title
+
+cover image
+
+episodes
+
+score
+
+📌 Roadmap
+
+⏳ Add user accounts
+
+🎨 Better UI themes
+
+📝 Notes per anime
+
+🎬 Seasonal charts
+
+🤝 Contributing
+
+Fork the repo
+
+Create a feature branch
+
+Push and create a pull request
+
+📄 License
+
+MIT License.
+
+⭐ Support
+
+If you like the project, star the repo!
